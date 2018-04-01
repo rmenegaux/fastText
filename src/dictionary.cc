@@ -21,8 +21,10 @@
 namespace fasttext {
 
 const std::string Dictionary::EOS = "</s>";
-const std::string Dictionary::BOW = "<";
-const std::string Dictionary::EOW = ">";
+//const std::string Dictionary::BOW = "<";
+//const std::string Dictionary::EOW = ">";
+const std::string Dictionary::BOW = "";
+const std::string Dictionary::EOW = "";
 
 Dictionary::Dictionary(std::shared_ptr<Args> args) : args_(args),
   word2int_(MAX_VOCAB_SIZE, -1), size_(0), nwords_(0), nlabels_(0),
@@ -95,13 +97,13 @@ const std::vector<int32_t> Dictionary::getSubwords(
 void Dictionary::getSubwords(const std::string& word,
                            std::vector<int32_t>& ngrams,
                            std::vector<std::string>& substrings) const {
-  int32_t i = getId(word);
+  // int32_t i = getId(word);
   ngrams.clear();
   substrings.clear();
-  if (i >= 0) {
-    ngrams.push_back(i);
-    substrings.push_back(words_[i].word);
-  }
+  // if (i >= 0) {
+  //   ngrams.push_back(i);
+  //   substrings.push_back(words_[i].word);
+  // }
   if (word != EOS) {
     computeSubwords(BOW + word + EOW, ngrams, substrings);
   }
@@ -191,7 +193,7 @@ void Dictionary::initNgrams() {
   for (size_t i = 0; i < size_; i++) {
     std::string word = BOW + words_[i].word + EOW;
     words_[i].subwords.clear();
-    words_[i].subwords.push_back(i);
+    // words_[i].subwords.push_back(i);
     if (words_[i].word != EOS) {
       computeSubwords(word, words_[i].subwords);
     }
