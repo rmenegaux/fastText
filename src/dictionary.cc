@@ -21,8 +21,9 @@
 namespace fasttext {
 
 const std::string Dictionary::EOS = "</s>";
-//const std::string Dictionary::BOW = "<";
-//const std::string Dictionary::EOW = ">";
+// CHANGE
+// const std::string Dictionary::BOW = "<";
+// const std::string Dictionary::EOW = ">";
 const std::string Dictionary::BOW = "";
 const std::string Dictionary::EOW = "";
 
@@ -56,8 +57,13 @@ void Dictionary::add(const std::string& w) {
     e.word = w;
     e.count = 1;
     e.type = getType(w);
-    words_.push_back(e);
-    word2int_[h] = size_++;
+    // CHANGE
+    // words_.push_back(e);
+    // word2int_[h] = size_++;
+    if (e.type == entry_type::label) {
+      words_.push_back(e);
+      word2int_[h] = size_++;
+    }
   } else {
     words_[word2int_[h]].count++;
   }
@@ -83,10 +89,11 @@ const std::vector<int32_t>& Dictionary::getSubwords(int32_t i) const {
 
 const std::vector<int32_t> Dictionary::getSubwords(
     const std::string& word) const {
-  int32_t i = getId(word);
-  if (i >= 0) {
-    return getSubwords(i);
-  }
+  // CHANGE
+  // int32_t i = getId(word);
+  // if (i >= 0) {
+  //   return getSubwords(i);
+  // }
   std::vector<int32_t> ngrams;
   if (word != EOS) {
     computeSubwords(BOW + word + EOW, ngrams);
@@ -97,6 +104,7 @@ const std::vector<int32_t> Dictionary::getSubwords(
 void Dictionary::getSubwords(const std::string& word,
                            std::vector<int32_t>& ngrams,
                            std::vector<std::string>& substrings) const {
+  // CHANGE
   // int32_t i = getId(word);
   ngrams.clear();
   substrings.clear();
@@ -271,6 +279,7 @@ void Dictionary::threshold(int64_t t, int64_t tl) {
   for (auto it = words_.begin(); it != words_.end(); ++it) {
     int32_t h = find(it->word);
     word2int_[h] = size_++;
+    // POSSIBLE CHANGE
     if (it->type == entry_type::word) nwords_++;
     if (it->type == entry_type::label) nlabels_++;
   }
@@ -328,6 +337,7 @@ void Dictionary::reset(std::istream& in) const {
   }
 }
 
+// Only used in cbow and skipgram
 int32_t Dictionary::getLine(std::istream& in,
                             std::vector<int32_t>& words,
                             std::minstd_rand& rng) const {
@@ -354,7 +364,8 @@ int32_t Dictionary::getLine(std::istream& in,
 int32_t Dictionary::getLine(std::istream& in,
                             std::vector<int32_t>& words,
                             std::vector<int32_t>& labels) const {
-  std::vector<int32_t> word_hashes;
+  // CHANGE
+  // std::vector<int32_t> word_hashes;
   std::string token;
   int32_t ntokens = 0;
 
@@ -369,13 +380,13 @@ int32_t Dictionary::getLine(std::istream& in,
     ntokens++;
     if (type == entry_type::word) {
       addSubwords(words, token, wid);
-      word_hashes.push_back(h);
+      // word_hashes.push_back(h);
     } else if (type == entry_type::label && wid >= 0) {
       labels.push_back(wid - nwords_);
     }
     if (token == EOS) break;
   }
-  addWordNgrams(words, word_hashes, args_->wordNgrams);
+  // addWordNgrams(words, word_hashes, args_->wordNgrams);
   return ntokens;
 }
 
