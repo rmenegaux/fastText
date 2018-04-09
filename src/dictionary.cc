@@ -70,7 +70,9 @@ void Dictionary::add(const std::string& w) {
 }
 
 int32_t Dictionary::nwords() const {
-  return nwords_;
+  //CHANGE
+  // return nwords_;
+  return 0;
 }
 
 int32_t Dictionary::nlabels() const {
@@ -83,6 +85,7 @@ int64_t Dictionary::ntokens() const {
 
 const std::vector<int32_t>& Dictionary::getSubwords(int32_t i) const {
   assert(i >= 0);
+  // TO BE CHANGED
   assert(i < nwords_);
   return words_[i].subwords;
 }
@@ -118,6 +121,7 @@ void Dictionary::getSubwords(const std::string& word,
 }
 
 bool Dictionary::discard(int32_t id, real rand) const {
+  // TO BE CHANGED
   assert(id >= 0);
   assert(id < nwords_);
   if (args_->model == model_name::sup) return false;
@@ -172,7 +176,9 @@ void Dictionary::computeSubwords(const std::string& word,
       }
       if (n >= args_->minn && !(n == 1 && (i == 0 || j == word.size()))) {
         int32_t h = hash(ngram) % args_->bucket;
-        ngrams.push_back(nwords_ + h);
+        // CHANGE
+        // ngrams.push_back(nwords_ + h);
+        ngrams.push_back(h);
         substrings.push_back(ngram);
       }
     }
@@ -382,7 +388,9 @@ int32_t Dictionary::getLine(std::istream& in,
       addSubwords(words, token, wid);
       // word_hashes.push_back(h);
     } else if (type == entry_type::label && wid >= 0) {
-      labels.push_back(wid - nwords_);
+      // CHANGE
+      // labels.push_back(wid - nwords_);
+      labels.push_back(wid);
     }
     if (token == EOS) break;
   }
@@ -399,7 +407,9 @@ void Dictionary::pushHash(std::vector<int32_t>& hashes, int32_t id) const {
       return;
     }
   }
-  hashes.push_back(nwords_ + id);
+  // CHANGE
+  hashes.push_back(id);
+  // hashes.push_back(nwords_ + id);
 }
 
 std::string Dictionary::getLabel(int32_t lid) const {
@@ -407,7 +417,9 @@ std::string Dictionary::getLabel(int32_t lid) const {
     throw std::invalid_argument(
         "Label id is out of range [0, " + std::to_string(nlabels_) + "]");
   }
-  return words_[lid + nwords_].word;
+  // CHANGE
+  return words_[lid].word;
+  // return words_[lid + nwords_].word;
 }
 
 void Dictionary::save(std::ostream& out) const {
@@ -476,7 +488,9 @@ void Dictionary::prune(std::vector<int32_t>& idx) {
   if (ngrams.size() != 0) {
     int32_t j = 0;
     for (const auto ngram : ngrams) {
-      pruneidx_[ngram - nwords_] = j;
+      // CHANGE
+      // pruneidx_[ngram - nwords_] = j;
+      pruneidx_[ngram] = j;
       j++;
     }
     idx.insert(idx.end(), ngrams.begin(), ngrams.end());
