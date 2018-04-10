@@ -153,11 +153,11 @@ void test(const std::vector<std::string>& args) {
     result = fasttext.test(ifs, k, threshold);
     ifs.close();
   }
+  std::cerr << "\rNumber of examples: " << std::get<0>(result) << std::endl;
   std::cout << "N" << "\t" << std::get<0>(result) << std::endl;
   std::cout << std::setprecision(3);
   std::cout << "P@" << k << "\t" << std::get<1>(result) << std::endl;
   std::cout << "R@" << k << "\t" << std::get<2>(result) << std::endl;
-  std::cerr << "Number of examples: " << std::get<0>(result) << std::endl;
 }
 
 void predict(const std::vector<std::string>& args) {

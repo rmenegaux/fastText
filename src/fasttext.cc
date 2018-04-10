@@ -60,15 +60,22 @@ int32_t FastText::getSubwordId(const std::string& word) const {
   return dict_->nwords() + h;
 }
 
+// CHANGE
+// void FastText::getWordVector(Vector& vec, const std::string& word) const {
+//   const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
+//   vec.zero();
+//   for (int i = 0; i < ngrams.size(); i ++) {
+//     addInputVector(vec, ngrams[i]);
+//   }
+//   if (ngrams.size() > 0) {
+//     vec.mul(1.0 / ngrams.size());
+//   }
+// }
+
 void FastText::getWordVector(Vector& vec, const std::string& word) const {
-  const std::vector<int32_t>& ngrams = dict_->getSubwords(word);
+  int32_t wid = dict_->getId(word);
   vec.zero();
-  for (int i = 0; i < ngrams.size(); i ++) {
-    addInputVector(vec, ngrams[i]);
-  }
-  if (ngrams.size() > 0) {
-    vec.mul(1.0 / ngrams.size());
-  }
+  addInputVector(vec, wid);
 }
 
 void FastText::getVector(Vector& vec, const std::string& word) const {
@@ -212,7 +219,6 @@ void FastText::loadModel(std::istream& in) {
   } else {
     input_->load(in);
   }
-
   if (!quant_input && dict_->isPruned()) {
     throw std::invalid_argument(
         "Invalid model file.\n"
@@ -375,6 +381,9 @@ std::tuple<int64_t, double, double> FastText::test(
   while (in.peek() != EOF) {
     dict_->getLine(in, line, labels);
     if (labels.size() > 0 && line.size() > 0) {
+      if (nexamples % 1000 == 0 && args_->verbose > 1) {
+        std::cerr << "\rNumber of examples: " << nexamples / 1000 << "K" << std::flush;
+      }
       std::vector<std::pair<real, int32_t>> modelPredictions;
       model_->predict(line, k, threshold, modelPredictions);
       for (auto it = modelPredictions.cbegin(); it != modelPredictions.cend(); it++) {
@@ -438,6 +447,7 @@ void FastText::predict(
   }
 }
 
+// TO BE CHANGED TO OLD getWordVector
 void FastText::getSentenceVector(
     std::istream& in,
     fasttext::Vector& svec) {
