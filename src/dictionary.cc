@@ -21,15 +21,17 @@
 namespace fasttext {
 
 const std::string Dictionary::EOS = "</s>";
+const char Dictionary::BOS = '>';
 const std::string Dictionary::BOW = "<";
 const std::string Dictionary::EOW = ">";
 
 Dictionary::Dictionary(std::shared_ptr<Args> args) : args_(args),
   word2int_(MAX_VOCAB_SIZE, -1), size_(0), nwords_(0), nlabels_(0),
+  nsequences_(0),
   ntokens_(0), pruneidx_size_(-1) {}
 
 Dictionary::Dictionary(std::shared_ptr<Args> args, std::istream& in) : args_(args),
-  size_(0), nwords_(0), nlabels_(0), ntokens_(0), pruneidx_size_(-1) {
+  size_(0), nwords_(0), nsequences_(0), nlabels_(0), ntokens_(0), pruneidx_size_(-1) {
   load(in);
 }
 
@@ -40,24 +42,66 @@ int32_t Dictionary::find(const std::string& w) const {
 int32_t Dictionary::find(const std::string& w, uint32_t h) const {
   int32_t word2intsize = word2int_.size();
   int32_t id = h % word2intsize;
-  while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
-    id = (id + 1) % word2intsize;
-  }
+  // while (word2int_[id] != -1 && words_[word2int_[id]].word != w) {
+  //   id = (id + 1) % word2intsize;
+  // }
   return id;
 }
 
 void Dictionary::add(const std::string& w) {
   int32_t h = find(w);
   ntokens_++;
-  if (word2int_[h] == -1) {
-    entry e;
-    e.word = w;
-    e.count = 1;
-    e.type = getType(w);
-    words_.push_back(e);
-    word2int_[h] = size_++;
-  } else {
-    words_[word2int_[h]].count++;
+  // if (word2int_[h] == -1) {
+  //   entry e;
+  //   e.word = w;
+  //   e.count = 1;
+  //   e.type = getType(w);
+  //   words_.push_back(e);
+  //   word2int_[h] = size_++;
+  // } else {
+  //   words_[word2int_[h]].count++;
+  // }
+}
+
+// Add sequence to the dictionary
+void Dictionary::add(entry e) {
+  nsequences_++;
+  // Find label
+  e.label = findLabel(e.name);
+  sequences_.push_back(e);
+}
+
+std::string Dictionary::findLabel(const std::string& name) {
+  std::string label;
+  auto it = name2label_.find(name);
+  if (it != name2label_.end()) {
+    addLabel(it->second);
+    return it->second;
+  }
+  // Add label to dict
+  // Maybe argument with default label?
+  name2label_[name] = name;
+  addLabel(name);
+  return name;
+}
+
+// Returns label index of position
+int Dictionary::findLabel(const std::streampos& pos) {
+  int i = 0;
+  // Check if position is greater than file size
+  while (i < nsequences_-1 && pos > sequences_[i+1].name_pos) {
+    i++;
+  }
+  if (pos < sequences_[i].seq_pos) {
+    return -1; // Position is in the sequence name
+  }
+  return label2int_[sequences_[i].label];
+}
+
+void Dictionary::addLabel(const std::string& label) {
+  auto it = label2int_.find(label);
+  if (it == label2int_.end()) {
+    label2int_[label] = nlabels_++;
   }
 }
 
@@ -100,7 +144,7 @@ void Dictionary::getSubwords(const std::string& word,
   substrings.clear();
   if (i >= 0) {
     ngrams.push_back(i);
-    substrings.push_back(words_[i].word);
+    // substrings.push_back(words_[i].word);
   }
   if (word != EOS) {
     computeSubwords(BOW + word + EOW, ngrams, substrings);
@@ -170,7 +214,7 @@ void Dictionary::computeSubwords(const std::string& word,
 }
 
 void Dictionary::computeSubwords(const std::string& word,
-                               std::vector<int32_t>& ngrams) const {
+                                 std::vector<int32_t>& ngrams) const {
   for (size_t i = 0; i < word.size(); i++) {
     std::string ngram;
     if ((word[i] & 0xC0) == 0x80) continue;
@@ -186,6 +230,10 @@ void Dictionary::computeSubwords(const std::string& word,
     }
   }
 }
+
+// int8_t Dictionary::charValue(const char) {
+
+// }
 
 void Dictionary::initNgrams() {
   for (size_t i = 0; i < size_; i++) {
@@ -225,6 +273,71 @@ bool Dictionary::readWord(std::istream& in, std::string& word) const
   return !word.empty();
 }
 
+
+void Dictionary::readFromFasta(std::istream& in) {
+  std::string line, name;
+  entry e;
+  e.count = 0;
+  std::streampos prev_pos = 0;
+  while(std::getline(in, line).good()){
+    if(line.empty() || line[0] == BOS ){ // Identifier marker
+      if( !e.name.empty() ){
+        add(e);
+        if (args_->verbose > 1) {
+          std::cerr << "\rRead sequence n" << nsequences_ << ", " << e.name << ", length: " << e.count << std::flush;
+        }
+        e.name.clear();
+        e.count = 0;
+      }
+      if( !line.empty() ){
+        e.name = line.substr(1);
+        e.seq_pos = in.tellg();
+        e.name_pos = prev_pos;
+      }
+    } else {
+      e.count += line.length();
+    }
+    prev_pos = in.tellg();
+  }
+
+  if( !e.name.empty() ){ // Add the last entry
+    add(e);
+  }
+
+  if (args_->verbose > 0) {
+    std::cerr << "" << std::endl;
+    std::cerr << "\rRead " << nsequences_ << " sequences" << std::endl;
+    std::cerr << "Number of labels: " << nlabels_ << std::endl;
+    printDictionary();
+  }
+  std::streampos pos(0);
+  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+  pos = 1037010900;
+  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+  pos = 1087195199;
+  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+  pos = 1087195197;
+  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+  // if (size_ == 0) {
+  //   throw std::invalid_argument(
+  //       "Empty vocabulary. Try a smaller -minCount value.");
+  // }
+}
+
+void Dictionary::printDictionary() const {
+  if (args_->verbose > 1) {
+  for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
+    std::cerr << it->name << " " << it->name_pos << " " << it->seq_pos << " length " << it->count << std::endl;
+  }
+  for (auto it = name2label_.begin(); it != name2label_.end(); ++it) {
+    std::cerr << it->first << " " << it->second << std::endl;
+  }
+  for (auto it = label2int_.begin(); it != label2int_.end(); ++it) {
+    std::cerr << it->first << " " << it->second << std::endl;
+  }
+  }
+}
+
 void Dictionary::readFromFile(std::istream& in) {
   std::string word;
   int64_t minThreshold = 1;
@@ -252,6 +365,27 @@ void Dictionary::readFromFile(std::istream& in) {
   }
 }
 
+// Assert nsequences_ = sequences_.size()
+void Dictionary::threshold(int64_t t) {
+  sort(sequences_.begin(), sequences_.end(), [](const entry& e1, const entry& e2) {
+      return e1.count > e2.count;
+    });
+  sequences_.erase(remove_if(sequences_.begin(), sequences_.end(), [&](const entry& e) {
+        return e.count < t;
+      }), sequences_.end());
+  sequences_.shrink_to_fit();
+  size_ = 0;
+  nsequences_ = 0;
+  nlabels_ = 0;
+  for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
+    nsequences_++;
+    // int32_t h = find(it->word);
+    // word2int_[h] = size_++;
+    // if (it->type == entry_type::word) nwords_++;
+    // if (it->type == entry_type::label) nlabels_++;
+  }
+}
+
 void Dictionary::threshold(int64_t t, int64_t tl) {
   sort(words_.begin(), words_.end(), [](const entry& e1, const entry& e2) {
       if (e1.type != e2.type) return e1.type < e2.type;
@@ -276,17 +410,17 @@ void Dictionary::threshold(int64_t t, int64_t tl) {
 
 void Dictionary::initTableDiscard() {
   pdiscard_.resize(size_);
-  for (size_t i = 0; i < size_; i++) {
-    real f = real(words_[i].count) / real(ntokens_);
-    pdiscard_[i] = std::sqrt(args_->t / f) + args_->t / f;
-  }
+  // for (size_t i = 0; i < size_; i++) {
+  //   real f = real(words_[i].count) / real(ntokens_);
+  //   pdiscard_[i] = std::sqrt(args_->t / f) + args_->t / f;
+  // }
 }
 
 std::vector<int64_t> Dictionary::getCounts(entry_type type) const {
   std::vector<int64_t> counts;
-  for (auto& w : words_) {
-    if (w.type == type) counts.push_back(w.count);
-  }
+  // for (auto& w : words_) {
+  //   if (w.type == type) counts.push_back(w.count);
+  // }
   return counts;
 }
 
@@ -394,7 +528,8 @@ std::string Dictionary::getLabel(int32_t lid) const {
     throw std::invalid_argument(
         "Label id is out of range [0, " + std::to_string(nlabels_) + "]");
   }
-  return words_[lid + nwords_].word;
+  // return words_[lid + nwords_].word;
+  return words_[lid + nwords_].name;
 }
 
 void Dictionary::save(std::ostream& out) const {
@@ -405,10 +540,10 @@ void Dictionary::save(std::ostream& out) const {
   out.write((char*) &pruneidx_size_, sizeof(int64_t));
   for (int32_t i = 0; i < size_; i++) {
     entry e = words_[i];
-    out.write(e.word.data(), e.word.size() * sizeof(char));
-    out.put(0);
-    out.write((char*) &(e.count), sizeof(int64_t));
-    out.write((char*) &(e.type), sizeof(entry_type));
+    // out.write(e.word.data(), e.word.size() * sizeof(char));
+    // out.put(0);
+    // out.write((char*) &(e.count), sizeof(int64_t));
+    // out.write((char*) &(e.type), sizeof(entry_type));
   }
   for (const auto pair : pruneidx_) {
     out.write((char*) &(pair.first), sizeof(int32_t));
@@ -446,8 +581,23 @@ void Dictionary::load(std::istream& in) {
 
   int32_t word2intsize = std::ceil(size_ / 0.7);
   word2int_.assign(word2intsize, -1);
-  for (int32_t i = 0; i < size_; i++) {
-    word2int_[find(words_[i].word)] = i;
+  // for (int32_t i = 0; i < size_; i++) {
+  //   word2int_[find(words_[i].word)] = i;
+  // }
+}
+
+void Dictionary::loadLabelMap() {
+  name2label_.clear();
+  if (args_->labels.size() != 0) {
+    std::ifstream ifs(args_->labels);
+    std::string name, label, strain;
+    if (!ifs.is_open()) {
+      throw std::invalid_argument(args_->labels + " cannot be opened for loading!");
+    }
+    while (ifs >> name >> strain >> label) {
+      name2label_[name] = label;
+    }
+    ifs.close();
   }
 }
 
@@ -473,13 +623,13 @@ void Dictionary::prune(std::vector<int32_t>& idx) {
   std::fill(word2int_.begin(), word2int_.end(), -1);
 
   int32_t j = 0;
-  for (int32_t i = 0; i < words_.size(); i++) {
-    if (getType(i) == entry_type::label || (j < words.size() && words[j] == i)) {
-      words_[j] = words_[i];
-      word2int_[find(words_[j].word)] = j;
-      j++;
-    }
-  }
+  // for (int32_t i = 0; i < words_.size(); i++) {
+  //   if (getType(i) == entry_type::label || (j < words.size() && words[j] == i)) {
+  //     words_[j] = words_[i];
+  //     word2int_[find(words_[j].word)] = j;
+  //     j++;
+  //   }
+  // }
   nwords_ = words.size();
   size_ = nwords_ +  nlabels_;
   words_.erase(words_.begin() + size_, words_.end());
@@ -488,13 +638,13 @@ void Dictionary::prune(std::vector<int32_t>& idx) {
 
 void Dictionary::dump(std::ostream& out) const {
   out << words_.size() << std::endl;
-  for (auto it : words_) {
-    std::string entryType = "word";
-    if (it.type == entry_type::label) {
-      entryType = "label";
-    }
-    out << it.word << " " << it.count << " " << entryType << std::endl;
-  }
+  // for (auto it : words_) {
+  //   std::string entryType = "word";
+  //   if (it.type == entry_type::label) {
+  //     entryType = "label";
+  //   }
+  //   out << it.word << " " << it.count << " " << entryType << std::endl;
+  // }
 }
 
 }

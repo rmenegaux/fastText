@@ -29,6 +29,7 @@ class Args {
     Args();
     std::string input;
     std::string output;
+    std::string labels;
     double lr;
     int lrUpdateRate;
     int dim;

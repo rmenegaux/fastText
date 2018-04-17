@@ -646,6 +646,7 @@ void FastText::loadVectors(std::string filename) {
 void FastText::train(const Args args) {
   args_ = std::make_shared<Args>(args);
   dict_ = std::make_shared<Dictionary>(args_);
+  dict_->loadLabelMap();
   if (args_->input == "-") {
     // manage expectations
     throw std::invalid_argument("Cannot use stdin for training!");
@@ -655,29 +656,30 @@ void FastText::train(const Args args) {
     throw std::invalid_argument(
         args_->input + " cannot be opened for training!");
   }
-  dict_->readFromFile(ifs);
+  // dict_->readFromFile(ifs);
+  dict_->readFromFasta(ifs);
   ifs.close();
 
-  if (args_->pretrainedVectors.size() != 0) {
-    loadVectors(args_->pretrainedVectors);
-  } else {
-    input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
-    input_->uniform(1.0 / args_->dim);
-  }
+  // if (args_->pretrainedVectors.size() != 0) {
+  //   loadVectors(args_->pretrainedVectors);
+  // } else {
+  //   input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
+  //   input_->uniform(1.0 / args_->dim);
+  // }
 
-  if (args_->model == model_name::sup) {
-    output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
-  } else {
-    output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
-  }
-  output_->zero();
-  startThreads();
-  model_ = std::make_shared<Model>(input_, output_, args_, 0);
-  if (args_->model == model_name::sup) {
-    model_->setTargetCounts(dict_->getCounts(entry_type::label));
-  } else {
-    model_->setTargetCounts(dict_->getCounts(entry_type::word));
-  }
+  // if (args_->model == model_name::sup) {
+  //   output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
+  // } else {
+  //   output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
+  // }
+  // output_->zero();
+  // startThreads();
+  // model_ = std::make_shared<Model>(input_, output_, args_, 0);
+  // if (args_->model == model_name::sup) {
+  //   model_->setTargetCounts(dict_->getCounts(entry_type::label));
+  // } else {
+  //   model_->setTargetCounts(dict_->getCounts(entry_type::word));
+  // }
 }
 
 void FastText::startThreads() {
