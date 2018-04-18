@@ -565,36 +565,93 @@ void FastText::analogies(int32_t k) {
   }
 }
 
+// void FastText::trainThread(int32_t threadId) {
+//   std::ifstream ifs(args_->input);
+//   utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
+
+//   Model model(input_, output_, args_, threadId);
+//   if (args_->model == model_name::sup) {
+//     model.setTargetCounts(dict_->getCounts(entry_type::label));
+//   } else {
+//     model.setTargetCounts(dict_->getCounts(entry_type::word));
+//   }
+
+//   const int64_t ntokens = dict_->ntokens();
+//   int64_t localTokenCount = 0;
+//   std::vector<int32_t> line, labels;
+//   while (tokenCount_ < args_->epoch * ntokens) {
+//     real progress = real(tokenCount_) / (args_->epoch * ntokens);
+//     real lr = args_->lr * (1.0 - progress);
+//     if (args_->model == model_name::sup) {
+//       localTokenCount += dict_->getLine(ifs, line, labels);
+//       supervised(model, lr, line, labels);
+//     } else if (args_->model == model_name::cbow) {
+//       localTokenCount += dict_->getLine(ifs, line, model.rng);
+//       cbow(model, lr, line);
+//     } else if (args_->model == model_name::sg) {
+//       localTokenCount += dict_->getLine(ifs, line, model.rng);
+//       skipgram(model, lr, line);
+//     }
+//     if (localTokenCount > args_->lrUpdateRate) {
+//       tokenCount_ += localTokenCount;
+//       localTokenCount = 0;
+//       if (threadId == 0 && args_->verbose > 1)
+//         loss_ = model.getLoss();
+//     }
+//   }
+//   if (threadId == 0)
+//     loss_ = model.getLoss();
+//   ifs.close();
+// }
+
 void FastText::trainThread(int32_t threadId) {
   std::ifstream ifs(args_->input);
-  utils::seek(ifs, threadId * utils::size(ifs) / args_->thread);
+  const int64_t size_ = utils::size(ifs);
+  std::streampos pos;
+
+  std::cerr << "\rSize: " << size_ << std::endl;
+
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> uniform(0, size_-1);
 
   Model model(input_, output_, args_, threadId);
-  if (args_->model == model_name::sup) {
-    model.setTargetCounts(dict_->getCounts(entry_type::label));
-  } else {
-    model.setTargetCounts(dict_->getCounts(entry_type::word));
-  }
-
-  const int64_t ntokens = dict_->ntokens();
-  int64_t localTokenCount = 0;
-  std::vector<int32_t> line, labels;
+  // FIXME
+  const int64_t ntokens = size_/200; // dict_->ntokens();
+  int64_t localFragmentCount = 0;
+  std::vector<int32_t> line, line_comp, labels;
+  int label;
   while (tokenCount_ < args_->epoch * ntokens) {
     real progress = real(tokenCount_) / (args_->epoch * ntokens);
     real lr = args_->lr * (1.0 - progress);
     if (args_->model == model_name::sup) {
-      localTokenCount += dict_->getLine(ifs, line, labels);
-      supervised(model, lr, line, labels);
+      // Generate random position
+      pos = uniform(gen);
+      // Get that position's label
+      label = dict_->labelFromPos(pos);
+      // std::cerr << "\rLabel: " << label << std::endl;
+      if (label != -1) {
+        labels.clear();
+        labels.push_back(label);
+        // Go to that position
+        utils::seek(ifs, pos);
+        if (dict_->readSequence(ifs, line, line_comp, 200)) {
+          localFragmentCount += 1;
+          supervised(model, lr, line, labels);
+          supervised(model, lr, line_comp, labels);
+        }
+      }
     } else if (args_->model == model_name::cbow) {
-      localTokenCount += dict_->getLine(ifs, line, model.rng);
+      localFragmentCount += dict_->getLine(ifs, line, model.rng);
       cbow(model, lr, line);
     } else if (args_->model == model_name::sg) {
-      localTokenCount += dict_->getLine(ifs, line, model.rng);
+      localFragmentCount += dict_->getLine(ifs, line, model.rng);
       skipgram(model, lr, line);
     }
-    if (localTokenCount > args_->lrUpdateRate) {
-      tokenCount_ += localTokenCount;
-      localTokenCount = 0;
+    // FIXME watch out for update rate
+    if (localFragmentCount > args_->lrUpdateRate) {
+      tokenCount_ += localFragmentCount;
+      localFragmentCount = 0;
       if (threadId == 0 && args_->verbose > 1)
         loss_ = model.getLoss();
     }
@@ -659,22 +716,22 @@ void FastText::train(const Args args) {
   // dict_->readFromFile(ifs);
   dict_->readFromFasta(ifs);
   ifs.close();
+  std::cerr << "\rNumber of buckets: " << dict_->nwords()+args_->bucket << std::endl;
+  if (args_->pretrainedVectors.size() != 0) {
+    loadVectors(args_->pretrainedVectors);
+  } else {
+    input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
+    input_->uniform(1.0 / args_->dim);
+  }
 
-  // if (args_->pretrainedVectors.size() != 0) {
-  //   loadVectors(args_->pretrainedVectors);
-  // } else {
-  //   input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
-  //   input_->uniform(1.0 / args_->dim);
-  // }
-
-  // if (args_->model == model_name::sup) {
-  //   output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
-  // } else {
-  //   output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
-  // }
-  // output_->zero();
-  // startThreads();
-  // model_ = std::make_shared<Model>(input_, output_, args_, 0);
+  if (args_->model == model_name::sup) {
+    output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
+  } else {
+    output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
+  }
+  output_->zero();
+  startThreads();
+  model_ = std::make_shared<Model>(input_, output_, args_, 0);
   // if (args_->model == model_name::sup) {
   //   model_->setTargetCounts(dict_->getCounts(entry_type::label));
   // } else {
@@ -690,7 +747,10 @@ void FastText::startThreads() {
   for (int32_t i = 0; i < args_->thread; i++) {
     threads.push_back(std::thread([=]() { trainThread(i); }));
   }
-  const int64_t ntokens = dict_->ntokens();
+  // FIXME get file size
+  std::ifstream ifs(args_->input);
+  const int64_t size_ = utils::size(ifs);
+  const int64_t ntokens = size_/200; // dict_->ntokens();
   // Same condition as trainThread
   while (tokenCount_ < args_->epoch * ntokens) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

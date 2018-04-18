@@ -87,7 +87,7 @@ std::string Dictionary::findLabel(const std::string& name) {
 }
 
 // Returns label index of position
-int Dictionary::findLabel(const std::streampos& pos) {
+int Dictionary::labelFromPos(const std::streampos& pos) {
   int i = 0;
   // Check if position is greater than file size
   while (i < nsequences_-1 && pos > sequences_[i+1].name_pos) {
@@ -96,6 +96,10 @@ int Dictionary::findLabel(const std::streampos& pos) {
   if (pos < sequences_[i].seq_pos) {
     return -1; // Position is in the sequence name
   }
+  // std::cerr << "\rPos: " << pos << std::endl;
+  // std::cerr << "\rSeq: " << i << std::endl;
+  // std::cerr << "\rLabel: " << sequences_[i].label << std::endl;
+  // std::cerr << "\rIndex: " << label2int_[sequences_[i].label] << std::endl;
   return label2int_[sequences_[i].label];
 }
 
@@ -107,7 +111,8 @@ void Dictionary::addLabel(const std::string& label) {
 }
 
 int32_t Dictionary::nwords() const {
-  return nwords_;
+  // FIXME
+  return 1 << 2*args_->minn;
 }
 
 int32_t Dictionary::nlabels() const {
@@ -295,19 +300,16 @@ bool Dictionary::readWord(std::istream& in, std::string& word) const
 bool Dictionary::readSequence(std::istream& in,
                               std::vector<int32_t>& ngrams,
                               std::vector<int32_t>& ngrams_comp,
-                              const std::streampos& start,
                               const int length) const {
   std::queue<int8_t> queue;
   int c;
   int8_t val, prev_val;
   int32_t index = 0, index_comp = 0;
   int32_t mult = 1;
-  int k = args_->minn;
+  const int k = args_->minn;
   ngrams.clear();
   ngrams_comp.clear();
 
-  in.clear();
-  in.seekg(start);
   std::streambuf& sb = *in.rdbuf();
 
   int i = 0;
@@ -330,15 +332,26 @@ bool Dictionary::readSequence(std::istream& in,
       queue.push(val);
       if (i < k) {
         index = index * 4 + val;
-        index_comp = mult * ((val + 2) % 4) + index_comp;
-        mult *= 4;
+        index_comp = ((val + 2) % 4) * mult + index_comp;
+        if (i < k-1) mult = mult << 2;
       }
       else {
         prev_val = queue.front();
         queue.pop();
-        index = -prev_val * mult + index * 4 + val;
-        index_comp = mult * val_comp + index / 4 - (prev_val + 2) % 4;
+        index = (index - prev_val * mult) * 4 + val;
+        index_comp = index_comp / 4 + ((val + 2) % 4) * mult;
+        // ((prev_val + 2) % 4) * mult + index_comp / 4 - (val + 2) % 4;
       }
+      // if (i < k) {
+      //   index = index * 4 + val;
+      //   index_comp = ((val + 2) % 4) << 2*i + index_comp;
+      // }
+      // else {
+      //   prev_val = queue.front();
+      //   queue.pop();
+      //   index = (index - prev_val << 2*(k-1)) << 2 + val;
+      //   index_comp = ((prev_val + 2) % 4) << 2*(k-1) + index / 4 - (prev_val + 2) % 4;
+      // }
       i++;
     }
   }
@@ -357,7 +370,6 @@ int32_t Dictionary::readSequence(std::string& word,
 
 std::string Dictionary::getSequence(int32_t index) const {
   std::string seq;
-  int8_t val;
   for(int i = 0; i < args_->minn; i++) {
     // FIXME use push_back with other arithmetic?
     seq.insert(seq.begin(), int2base(index % 4));
@@ -376,7 +388,7 @@ void Dictionary::readFromFasta(std::istream& in) {
       if( !e.name.empty() ){
         add(e);
         if (args_->verbose > 1) {
-          std::cerr << "\rRead sequence n" << nsequences_ << ", " << e.name << ", length: " << e.count << std::flush;
+          std::cerr << "\rRead sequence n" << nsequences_ << ", " << e.name << "      " <<std::flush;
         }
         e.name.clear();
         e.count = 0;
@@ -397,26 +409,29 @@ void Dictionary::readFromFasta(std::istream& in) {
   }
 
   if (args_->verbose > 0) {
-    std::cerr << "\rRead sequence n" << nsequences_ << ", " << e.name << ", length: " << e.count << std::endl;
+    std::cerr << "\rRead sequence n" << nsequences_ << ", " << e.name << "       " << std::endl;
     std::cerr << "\rNumber of sequences " << nsequences_ << std::endl;
-    std::cerr << "\rNumber of labels: " << nlabels_ << std::endl;
-    //FIXME print total length
+    std::cerr << "\rNumber of labels: " << nlabels() << std::endl;
+    std::cerr << "\rNumber of words: " << nwords() << std::endl;
+    // FIXME print total length
     // printDictionary();
   }
   std::vector<int32_t> ngrams, ngrams_comp;
-  readSequence(in, ngrams, ngrams_comp, sequences_[0].seq_pos, 11);
+  in.clear();
+  in.seekg(sequences_[0].seq_pos);
+  readSequence(in, ngrams, ngrams_comp, 20);
   in.clear();
   in.seekg(std::streampos(0));
   std::cerr << "\rTEST: Ground truth" << std::endl;
   std::getline(in, line);
   std::getline(in, line);
-  std::cerr << line.substr(0, 11) << std::endl;
+  std::cerr << line.substr(0, 20) << std::endl;
   std::cerr << "\rSequences " << std::endl;
   std::cerr << getSequence(ngrams[0]) << std::endl;
-  std::cerr << getSequence(ngrams[1]) << std::endl;
+  std::cerr << getSequence(ngrams[10]) << std::endl;
   std::cerr << "\rReverse sequences " << std::endl;
   std::cerr << getSequence(ngrams_comp[0]) << std::endl;
-  std::cerr << getSequence(ngrams_comp[1]) << std::endl;
+  std::cerr << getSequence(ngrams_comp[10]) << std::endl;
   // if (size_ == 0) {
   //   throw std::invalid_argument(
   //       "Empty vocabulary. Try a smaller -minCount value.");
@@ -439,14 +454,14 @@ void Dictionary::readFromFasta(std::istream& in) {
 void Dictionary::printDictionary() const {
   if (args_->verbose > 1) {
   for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
-    std::cerr << it->name << " " << it->name_pos << " " << it->seq_pos << " length " << it->count << std::endl;
+    std::cerr << it->name << " " << it->name_pos << " " << it->seq_pos << " length " << it->count << " label " << it->label << " name " << it->name << std::endl;
   }
-  for (auto it = name2label_.begin(); it != name2label_.end(); ++it) {
-    std::cerr << it->first << " " << it->second << std::endl;
-  }
-  for (auto it = label2int_.begin(); it != label2int_.end(); ++it) {
-    std::cerr << it->first << " " << it->second << std::endl;
-  }
+  // for (auto it = name2label_.begin(); it != name2label_.end(); ++it) {
+  //   std::cerr << it->first << " " << it->second << std::endl;
+  // }
+  // for (auto it = label2int_.begin(); it != label2int_.end(); ++it) {
+  //   std::cerr << it->first << " " << it->second << std::endl;
+  // }
   }
 }
 

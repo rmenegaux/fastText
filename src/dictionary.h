@@ -112,7 +112,7 @@ class Dictionary {
     void add(const std::string&);
     void add(const entry);
     std::string findLabel(const std::string&);
-    int findLabel(const std::streampos&);
+    int labelFromPos(const std::streampos&);
     bool readWord(std::istream&, std::string&) const;
     void readFromFasta(std::istream& in);
     void printDictionary() const;
@@ -137,7 +137,6 @@ class Dictionary {
     bool readSequence(
         std::istream& in, std::vector<int32_t>& ngrams,
         std::vector<int32_t>& ngrams_comp,
-        const std::streampos& start,
         const int length) const;
     int32_t readSequence(std::string& word,
                          std::vector<int32_t>& ngrams) const;
