@@ -17,6 +17,7 @@
 #include <iterator>
 #include <cmath>
 #include <stdexcept>
+#include <queue>
 
 namespace fasttext {
 
@@ -231,9 +232,27 @@ void Dictionary::computeSubwords(const std::string& word,
   }
 }
 
-// int8_t Dictionary::charValue(const char) {
+int8_t Dictionary::base2int(const char c) const {
+  // With this convention, the complementary basepair is
+  // (base + 2) % 4
+  switch(c) {
+    case 'A' : return 0;
+    case 'C' : return 1;
+    case 'T' : return 2;
+    case 'G' : return 3;
+  }
+  throw std::invalid_argument("Non-ACGT character in base2int");
+}
 
-// }
+char Dictionary::int2base(const int c) const {
+  switch(c) {
+    case 0 : return 'A';
+    case 1 : return 'C';
+    case 2 : return 'T';
+    case 3 : return 'G';
+  }
+  throw std::invalid_argument("Number greater than 3 in int2base");
+}
 
 void Dictionary::initNgrams() {
   for (size_t i = 0; i < size_; i++) {
@@ -273,6 +292,79 @@ bool Dictionary::readWord(std::istream& in, std::string& word) const
   return !word.empty();
 }
 
+bool Dictionary::readSequence(std::istream& in,
+                              std::vector<int32_t>& ngrams,
+                              std::vector<int32_t>& ngrams_comp,
+                              const std::streampos& start,
+                              const int length) const {
+  std::queue<int8_t> queue;
+  int c;
+  int8_t val, prev_val;
+  int32_t index = 0, index_comp = 0;
+  int32_t mult = 1;
+  int k = args_->minn;
+  ngrams.clear();
+  ngrams_comp.clear();
+
+  in.clear();
+  in.seekg(start);
+  std::streambuf& sb = *in.rdbuf();
+
+  int i = 0;
+  if (length < k) {
+    return 0;
+  }
+  while (i < length) {
+    if (i >= k) {
+      ngrams.push_back(index);
+      ngrams_comp.push_back(index_comp);
+    }
+    c = sb.sbumpc();
+    if (c == '>' || c == EOF) {
+      // Reached end of sequence
+      return (i >= k);
+    }
+    c = toupper(c);
+    if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
+      val = base2int(c);
+      queue.push(val);
+      if (i < k) {
+        index = index * 4 + val;
+        index_comp = mult * ((val + 2) % 4) + index_comp;
+        mult *= 4;
+      }
+      else {
+        prev_val = queue.front();
+        queue.pop();
+        index = -prev_val * mult + index * 4 + val;
+        index_comp = mult * val_comp + index / 4 - (prev_val + 2) % 4;
+      }
+      i++;
+    }
+  }
+  if (i >= k) {
+    ngrams.push_back(index);
+    ngrams_comp.push_back(index_comp);
+    return true;
+  }
+  return false;
+}
+
+int32_t Dictionary::readSequence(std::string& word,
+                            std::vector<int32_t>& ngrams) const {
+  return 0;
+}
+
+std::string Dictionary::getSequence(int32_t index) const {
+  std::string seq;
+  int8_t val;
+  for(int i = 0; i < args_->minn; i++) {
+    // FIXME use push_back with other arithmetic?
+    seq.insert(seq.begin(), int2base(index % 4));
+    index = index / 4;
+  }
+  return seq;
+}
 
 void Dictionary::readFromFasta(std::istream& in) {
   std::string line, name;
@@ -305,24 +397,44 @@ void Dictionary::readFromFasta(std::istream& in) {
   }
 
   if (args_->verbose > 0) {
-    std::cerr << "" << std::endl;
-    std::cerr << "\rRead " << nsequences_ << " sequences" << std::endl;
-    std::cerr << "Number of labels: " << nlabels_ << std::endl;
-    printDictionary();
+    std::cerr << "\rRead sequence n" << nsequences_ << ", " << e.name << ", length: " << e.count << std::endl;
+    std::cerr << "\rNumber of sequences " << nsequences_ << std::endl;
+    std::cerr << "\rNumber of labels: " << nlabels_ << std::endl;
+    //FIXME print total length
+    // printDictionary();
   }
-  std::streampos pos(0);
-  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
-  pos = 1037010900;
-  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
-  pos = 1087195199;
-  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
-  pos = 1087195197;
-  std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+  std::vector<int32_t> ngrams, ngrams_comp;
+  readSequence(in, ngrams, ngrams_comp, sequences_[0].seq_pos, 11);
+  in.clear();
+  in.seekg(std::streampos(0));
+  std::cerr << "\rTEST: Ground truth" << std::endl;
+  std::getline(in, line);
+  std::getline(in, line);
+  std::cerr << line.substr(0, 11) << std::endl;
+  std::cerr << "\rSequences " << std::endl;
+  std::cerr << getSequence(ngrams[0]) << std::endl;
+  std::cerr << getSequence(ngrams[1]) << std::endl;
+  std::cerr << "\rReverse sequences " << std::endl;
+  std::cerr << getSequence(ngrams_comp[0]) << std::endl;
+  std::cerr << getSequence(ngrams_comp[1]) << std::endl;
   // if (size_ == 0) {
   //   throw std::invalid_argument(
   //       "Empty vocabulary. Try a smaller -minCount value.");
   // }
 }
+
+// FUTURE TESTS
+// FindLabel
+// std::streampos pos(0);
+// std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+// pos = 1037010900;
+// std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+// pos = 1087195199;
+// std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+// pos = 1087195197;
+// std::cerr << "\rPosition " << pos << " has label " << findLabel(pos) << std::endl;
+// nlabels = length label2int_
+// Assert kmers from readSequence are good
 
 void Dictionary::printDictionary() const {
   if (args_->verbose > 1) {
@@ -455,6 +567,7 @@ void Dictionary::addSubwords(std::vector<int32_t>& line,
 
 void Dictionary::reset(std::istream& in) const {
   if (in.eof()) {
+    // FIXME use utils::seek
     in.clear();
     in.seekg(std::streampos(0));
   }
@@ -528,8 +641,13 @@ std::string Dictionary::getLabel(int32_t lid) const {
     throw std::invalid_argument(
         "Label id is out of range [0, " + std::to_string(nlabels_) + "]");
   }
-  // return words_[lid + nwords_].word;
-  return words_[lid + nwords_].name;
+  // Reverse lookup
+  for (auto it=label2int_.begin(); it!=label2int_.end(); ++it) {
+    if (it->second == lid) {
+      return it->first;
+    }
+  }
+  throw std::invalid_argument("Could not find label " + std::to_string(lid));
 }
 
 void Dictionary::save(std::ostream& out) const {

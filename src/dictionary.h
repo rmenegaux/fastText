@@ -131,6 +131,15 @@ class Dictionary {
     void prune(std::vector<int32_t>&);
     bool isPruned() { return pruneidx_size_ >= 0; }
     void dump(std::ostream&) const;
+    int8_t base2int(const char c) const;
+    char int2base(const int c) const;
+    std::string getSequence(int32_t i) const;
+    bool readSequence(
+        std::istream& in, std::vector<int32_t>& ngrams,
+        std::vector<int32_t>& ngrams_comp,
+        const std::streampos& start,
+        const int length) const;
+    int32_t readSequence(std::string& word,
+                         std::vector<int32_t>& ngrams) const;
 };
-
 }
