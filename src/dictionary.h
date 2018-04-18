@@ -69,7 +69,7 @@ class Dictionary {
     int32_t nwords_;
     int32_t nlabels_;
     int64_t ntokens_;
-    int64_t nsequences_;
+    int32_t nsequences_;
 
     int64_t pruneidx_size_;
     std::unordered_map<int32_t, int32_t> pruneidx_;

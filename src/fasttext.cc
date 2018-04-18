@@ -71,6 +71,11 @@ void FastText::getWordVector(Vector& vec, const std::string& word) const {
   }
 }
 
+void FastText::getWordVector(Vector& vec, const int32_t i) const {
+  vec.zero();
+  addInputVector(vec, i);
+}
+
 void FastText::getVector(Vector& vec, const std::string& word) const {
   getWordVector(vec, word);
 }
@@ -92,8 +97,8 @@ void FastText::saveVectors() {
   ofs << dict_->nwords() << " " << args_->dim << std::endl;
   Vector vec(args_->dim);
   for (int32_t i = 0; i < dict_->nwords(); i++) {
-    std::string word = dict_->getWord(i);
-    getWordVector(vec, word);
+    std::string word = dict_->getSequence(i);
+    getWordVector(vec, i);
     ofs << word << " " << vec << std::endl;
   }
   ofs.close();
@@ -608,8 +613,6 @@ void FastText::trainThread(int32_t threadId) {
   std::ifstream ifs(args_->input);
   const int64_t size_ = utils::size(ifs);
   std::streampos pos;
-
-  std::cerr << "\rSize: " << size_ << std::endl;
 
   std::random_device rd;
   std::mt19937 gen(rd());

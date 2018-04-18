@@ -340,18 +340,7 @@ bool Dictionary::readSequence(std::istream& in,
         queue.pop();
         index = (index - prev_val * mult) * 4 + val;
         index_comp = index_comp / 4 + ((val + 2) % 4) * mult;
-        // ((prev_val + 2) % 4) * mult + index_comp / 4 - (val + 2) % 4;
       }
-      // if (i < k) {
-      //   index = index * 4 + val;
-      //   index_comp = ((val + 2) % 4) << 2*i + index_comp;
-      // }
-      // else {
-      //   prev_val = queue.front();
-      //   queue.pop();
-      //   index = (index - prev_val << 2*(k-1)) << 2 + val;
-      //   index_comp = ((prev_val + 2) % 4) << 2*(k-1) + index / 4 - (prev_val + 2) % 4;
-      // }
       i++;
     }
   }
@@ -416,22 +405,22 @@ void Dictionary::readFromFasta(std::istream& in) {
     // FIXME print total length
     // printDictionary();
   }
-  std::vector<int32_t> ngrams, ngrams_comp;
-  in.clear();
-  in.seekg(sequences_[0].seq_pos);
-  readSequence(in, ngrams, ngrams_comp, 20);
-  in.clear();
-  in.seekg(std::streampos(0));
-  std::cerr << "\rTEST: Ground truth" << std::endl;
-  std::getline(in, line);
-  std::getline(in, line);
-  std::cerr << line.substr(0, 20) << std::endl;
-  std::cerr << "\rSequences " << std::endl;
-  std::cerr << getSequence(ngrams[0]) << std::endl;
-  std::cerr << getSequence(ngrams[10]) << std::endl;
-  std::cerr << "\rReverse sequences " << std::endl;
-  std::cerr << getSequence(ngrams_comp[0]) << std::endl;
-  std::cerr << getSequence(ngrams_comp[10]) << std::endl;
+  // std::vector<int32_t> ngrams, ngrams_comp;
+  // in.clear();
+  // in.seekg(sequences_[0].seq_pos);
+  // readSequence(in, ngrams, ngrams_comp, 20);
+  // in.clear();
+  // in.seekg(std::streampos(0));
+  // std::cerr << "\rTEST: Ground truth" << std::endl;
+  // std::getline(in, line);
+  // std::getline(in, line);
+  // std::cerr << line.substr(0, 20) << std::endl;
+  // std::cerr << "\rSequences " << std::endl;
+  // std::cerr << getSequence(ngrams[0]) << std::endl;
+  // std::cerr << getSequence(ngrams[10]) << std::endl;
+  // std::cerr << "\rReverse sequences " << std::endl;
+  // std::cerr << getSequence(ngrams_comp[0]) << std::endl;
+  // std::cerr << getSequence(ngrams_comp[10]) << std::endl;
   // if (size_ == 0) {
   //   throw std::invalid_argument(
   //       "Empty vocabulary. Try a smaller -minCount value.");
@@ -666,19 +655,23 @@ std::string Dictionary::getLabel(int32_t lid) const {
 }
 
 void Dictionary::save(std::ostream& out) const {
-  out.write((char*) &size_, sizeof(int32_t));
-  out.write((char*) &nwords_, sizeof(int32_t));
+  out.write((char*) &nsequences_, sizeof(int32_t));
   out.write((char*) &nlabels_, sizeof(int32_t));
-  out.write((char*) &ntokens_, sizeof(int64_t));
-  out.write((char*) &pruneidx_size_, sizeof(int64_t));
-  for (int32_t i = 0; i < size_; i++) {
-    entry e = words_[i];
-    // out.write(e.word.data(), e.word.size() * sizeof(char));
-    // out.put(0);
-    // out.write((char*) &(e.count), sizeof(int64_t));
-    // out.write((char*) &(e.type), sizeof(entry_type));
+  for (int32_t i = 0; i < nsequences_; i++) {
+    entry e = sequences_[i];
+    out.write(e.label.data(), e.label.size() * sizeof(char));
+    out.put(0);
+    out.write(e.name.data(), e.name.size() * sizeof(char));
+    out.put(0);
+    out.write((char*) &(e.count), sizeof(int64_t));
+    out.write((char*) &(e.seq_pos), sizeof(std::streampos));
+    out.write((char*) &(e.name_pos), sizeof(std::streampos));
   }
-  for (const auto pair : pruneidx_) {
+  for (const auto pair : name2label_) {
+    out.write((char*) &(pair.first), sizeof(int32_t));
+    out.write((char*) &(pair.second), sizeof(int32_t));
+  }
+  for (const auto pair : label2int_) {
     out.write((char*) &(pair.first), sizeof(int32_t));
     out.write((char*) &(pair.second), sizeof(int32_t));
   }
