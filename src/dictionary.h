@@ -128,7 +128,6 @@ class Dictionary {
         const;
     int32_t getLine(std::istream&, std::vector<int32_t>&,
                     std::minstd_rand&) const;
-    void threshold(int64_t);
     void threshold(int64_t, int64_t);
     void prune(std::vector<int32_t>&);
     bool isPruned() { return pruneidx_size_ >= 0; }

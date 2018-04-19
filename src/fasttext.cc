@@ -379,7 +379,7 @@ std::tuple<int64_t, double, double> FastText::test(
   int32_t nexamples = 0, nlabels = 0, npredictions = 0;
   double precision = 0.0;
   std::vector<int32_t> line, labels;
-
+  // dict_->printDictionary();
   while (in.peek() != EOF) {
     dict_->getLine(in, line, labels);
     if (labels.size() > 0 && line.size() > 0) {
@@ -394,6 +394,9 @@ std::tuple<int64_t, double, double> FastText::test(
       nlabels += labels.size();
       npredictions += modelPredictions.size();
     }
+    // else {
+    //   std::cerr << "line " << line.size() << " label " << labels[0] << " pos " << in.tellg() / 215 << std::endl;
+    // }
   }
   return std::tuple<int64_t, double, double>(
       nexamples, precision / npredictions, precision / nlabels);
@@ -623,7 +626,7 @@ void FastText::trainThread(int32_t threadId) {
 
   Model model(input_, output_, args_, threadId);
   // FIXME
-  const int64_t ntokens = size_/200; // dict_->ntokens();
+  const int64_t ntokens = size_ / args_->length; // dict_->ntokens();
   int64_t localFragmentCount = 0;
   std::vector<int32_t> line, line_comp, labels;
   int label;
@@ -641,7 +644,7 @@ void FastText::trainThread(int32_t threadId) {
         labels.push_back(label);
         // Go to that position
         utils::seek(ifs, pos);
-        if (dict_->readSequence(ifs, line, line_comp, 200)) {
+        if (dict_->readSequence(ifs, line, line_comp, args_->length)) {
           localFragmentCount += 1;
           supervised(model, lr, line, labels);
           supervised(model, lr, line_comp, labels);
@@ -698,33 +701,39 @@ void FastText::loadVectors(std::string filename) {
 
 void FastText::train(const Args args) {
   args_ = std::make_shared<Args>(args);
-  dict_ = std::make_shared<Dictionary>(args_);
-  dict_->loadLabelMap();
-  if (args_->input == "-") {
-    // manage expectations
-    throw std::invalid_argument("Cannot use stdin for training!");
-  }
-  std::ifstream ifs(args_->input);
-  if (!ifs.is_open()) {
-    throw std::invalid_argument(
-        args_->input + " cannot be opened for training!");
-  }
-  // dict_->readFromFile(ifs);
-  dict_->readFromFasta(ifs);
-  ifs.close();
-  if (args_->pretrainedVectors.size() != 0) {
-    loadVectors(args_->pretrainedVectors);
+  if (args_->loadModel.size() != 0) {
+    loadModel(args_->loadModel);
+    // FIXME Check args are compatible??
+    args_ = std::make_shared<Args>(args);
   } else {
-    input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
-    input_->uniform(1.0 / args_->dim);
+    dict_ = std::make_shared<Dictionary>(args_);
+    if (args_->input == "-") {
+      // manage expectations
+      throw std::invalid_argument("Cannot use stdin for training!");
+    }
+    std::ifstream ifs(args_->input);
+    if (!ifs.is_open()) {
+      throw std::invalid_argument(
+          args_->input + " cannot be opened for training!");
+    }
+    // dict_->readFromFile(ifs);
+    dict_->loadLabelMap();
+    dict_->readFromFasta(ifs);
+    ifs.close();
+    if (args_->pretrainedVectors.size() != 0) {
+      loadVectors(args_->pretrainedVectors);
+    } else {
+      input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
+      input_->uniform(1.0 / args_->dim);
+    }
+  
+    if (args_->model == model_name::sup) {
+      output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
+    } else {
+      output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
+    }
+    output_->zero();
   }
-
-  if (args_->model == model_name::sup) {
-    output_ = std::make_shared<Matrix>(dict_->nlabels(), args_->dim);
-  } else {
-    output_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
-  }
-  output_->zero();
   startThreads();
   model_ = std::make_shared<Model>(input_, output_, args_, 0);
   // if (args_->model == model_name::sup) {
@@ -745,7 +754,7 @@ void FastText::startThreads() {
   // FIXME get file size
   std::ifstream ifs(args_->input);
   const int64_t size_ = utils::size(ifs);
-  const int64_t ntokens = size_/200; // dict_->ntokens();
+  const int64_t ntokens = size_ / args_->length; // dict_->ntokens();
   // Same condition as trainThread
   while (tokenCount_ < args_->epoch * ntokens) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

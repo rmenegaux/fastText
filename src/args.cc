@@ -28,6 +28,7 @@ Args::Args() {
   loss = loss_name::ns;
   model = model_name::sg;
   bucket = 2000000;
+  length = 200;
   minn = 3;
   maxn = 6;
   thread = 12;
@@ -36,6 +37,7 @@ Args::Args() {
   label = "__label__";
   verbose = 2;
   pretrainedVectors = "";
+  loadModel = "";
   saveOutput = false;
   freezeEmbeddings = false;
 
@@ -139,6 +141,8 @@ void Args::parseArgs(const std::vector<std::string>& args) {
         }
       } else if (args[ai] == "-bucket") {
         bucket = std::stoi(args.at(ai + 1));
+      } else if (args[ai] == "-length") {
+        length = std::stoi(args.at(ai + 1));
       } else if (args[ai] == "-minn") {
         minn = std::stoi(args.at(ai + 1));
       } else if (args[ai] == "-maxn") {
@@ -153,6 +157,8 @@ void Args::parseArgs(const std::vector<std::string>& args) {
         verbose = std::stoi(args.at(ai + 1));
       } else if (args[ai] == "-pretrainedVectors") {
         pretrainedVectors = std::string(args.at(ai + 1));
+      } else if (args[ai] == "-loadModel") {
+        loadModel = std::string(args.at(ai + 1));
       } else if (args[ai] == "-saveOutput") {
         saveOutput = true;
         ai--;
@@ -229,14 +235,16 @@ void Args::printTrainingHelp() {
     << "  -lr                 learning rate [" << lr << "]\n"
     << "  -lrUpdateRate       change the rate of updates for the learning rate [" << lrUpdateRate << "]\n"
     << "  -dim                size of word vectors [" << dim << "]\n"
+    << "  -length             length of fragments for training [" << minn << "]\n"
     << "  -ws                 size of the context window [" << ws << "]\n"
     << "  -epoch              number of epochs [" << epoch << "]\n"
     << "  -neg                number of negatives sampled [" << neg << "]\n"
     << "  -loss               loss function {ns, hs, softmax} [" << lossToString(loss) << "]\n"
     << "  -thread             number of threads [" << thread << "]\n"
     << "  -pretrainedVectors  pretrained word vectors for supervised learning ["<< pretrainedVectors <<"]\n"
+    << "  -loadModel          pretrained model for supervised learning ["<< loadModel <<"]\n"
     << "  -saveOutput         whether output params should be saved [" << boolToString(saveOutput) << "]\n"
-    << "  -freezeEmbeddings   whether embedding vectors should not be retrained [" << boolToString(freezeEmbeddings) << "]\n";
+    << "  -freezeEmbeddings   model does not update the embedding vectors [" << boolToString(freezeEmbeddings) << "]\n";
 }
 
 void Args::printQuantizationHelp() {

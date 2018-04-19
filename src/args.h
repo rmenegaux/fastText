@@ -44,11 +44,13 @@ class Args {
     int bucket;
     int minn;
     int maxn;
+    int length;
     int thread;
     double t;
     std::string label;
     int verbose;
     std::string pretrainedVectors;
+    std::string loadModel;
     bool saveOutput;
     bool freezeEmbeddings;
 
