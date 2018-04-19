@@ -50,6 +50,7 @@ class Args {
     int verbose;
     std::string pretrainedVectors;
     bool saveOutput;
+    bool freezeEmbeddings;
 
     bool qout;
     bool retrain;

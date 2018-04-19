@@ -235,13 +235,14 @@ void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
   }
   nexamples_ += 1;
   
-  // FIXME add freeze embeddings here
-  // if (args_->model == model_name::sup) {
-  //   grad_.mul(1.0 / input.size());
-  // }
-  // for (auto it = input.cbegin(); it != input.cend(); ++it) {
-  //   wi_->addRow(grad_, *it, 1.0);
-  // }
+  if (!args_->freezeEmbeddings) {
+    if (args_->model == model_name::sup) {
+      grad_.mul(1.0 / input.size());
+    }
+    for (auto it = input.cbegin(); it != input.cend(); ++it) {
+      wi_->addRow(grad_, *it, 1.0);
+    }
+  }
 }
 
 void Model::setTargetCounts(const std::vector<int64_t>& counts) {
