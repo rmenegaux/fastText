@@ -138,9 +138,9 @@ void test(const std::vector<std::string>& args) {
   }
 
   FastText fasttext;
-  std::cerr << "Loading Model" << std::endl;
+  // std::cerr << "Loading Model" << std::endl;
   fasttext.loadModel(args[2]);
-  std::cerr << "Model Loaded" << std::endl;
+  // std::cerr << "Model Loaded" << std::endl;
 
   std::tuple<int64_t, double, double> result;
   std::string infile = args[3];
@@ -213,19 +213,19 @@ void printWordVectors(const std::vector<std::string> args) {
 }
 
 void printSentenceVectors(const std::vector<std::string> args) {
-  if (args.size() != 3) {
-    printPrintSentenceVectorsUsage();
-    exit(EXIT_FAILURE);
-  }
-  FastText fasttext;
-  fasttext.loadModel(std::string(args[2]));
-  Vector svec(fasttext.getDimension());
-  while (std::cin.peek() != EOF) {
-    fasttext.getSentenceVector(std::cin, svec);
-    // Don't print sentence
-    std::cout << svec << std::endl;
-  }
-  exit(0);
+  // if (args.size() != 3) {
+  //   printPrintSentenceVectorsUsage();
+  //   exit(EXIT_FAILURE);
+  // }
+  // FastText fasttext;
+  // fasttext.loadModel(std::string(args[2]));
+  // Vector svec(fasttext.getDimension());
+  // while (std::cin.peek() != EOF) {
+  //   fasttext.getSentenceVector(std::cin, svec);
+  //   // Don't print sentence
+  //   std::cout << svec << std::endl;
+  // }
+  // exit(0);
 }
 
 void printNgrams(const std::vector<std::string> args) {
