@@ -138,7 +138,9 @@ void test(const std::vector<std::string>& args) {
   }
 
   FastText fasttext;
+  std::cerr << "Loading Model" << std::endl;
   fasttext.loadModel(args[2]);
+  std::cerr << "Model Loaded" << std::endl;
 
   std::tuple<int64_t, double, double> result;
   std::string infile = args[3];

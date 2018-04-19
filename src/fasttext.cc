@@ -202,14 +202,17 @@ void FastText::loadModel(std::istream& in) {
   output_ = std::make_shared<Matrix>();
   qinput_ = std::make_shared<QMatrix>();
   qoutput_ = std::make_shared<QMatrix>();
+  std::cerr << "Loading args" << std::endl;
   args_->load(in);
   if (version == 11 && args_->model == model_name::sup) {
     // backward compatibility: old supervised models do not use char ngrams.
     args_->maxn = 0;
   }
+  std::cerr << "Loading dict" << std::endl;
   dict_ = std::make_shared<Dictionary>(args_, in);
 
   bool quant_input;
+  std::cerr << "Loading Input" << std::endl;
   in.read((char*) &quant_input, sizeof(bool));
   if (quant_input) {
     quant_ = true;
@@ -224,7 +227,7 @@ void FastText::loadModel(std::istream& in) {
         "Please download the updated model from www.fasttext.cc.\n"
         "See issue #332 on Github for more information.\n");
   }
-
+  std::cerr << "Loading Output" << std::endl;
   in.read((char*) &args_->qout, sizeof(bool));
   if (quant_ && args_->qout) {
     qoutput_->load(in);
@@ -236,11 +239,11 @@ void FastText::loadModel(std::istream& in) {
   model_->quant_ = quant_;
   model_->setQuantizePointer(qinput_, qoutput_, args_->qout);
 
-  if (args_->model == model_name::sup) {
-    model_->setTargetCounts(dict_->getCounts(entry_type::label));
-  } else {
-    model_->setTargetCounts(dict_->getCounts(entry_type::word));
-  }
+  // if (args_->model == model_name::sup) {
+  //   model_->setTargetCounts(dict_->getCounts(entry_type::label));
+  // } else {
+  //   model_->setTargetCounts(dict_->getCounts(entry_type::word));
+  // }
 }
 
 void FastText::printInfo(real progress, real loss, std::ostream& log_stream) {
@@ -665,6 +668,7 @@ void FastText::trainThread(int32_t threadId) {
 }
 
 void FastText::loadVectors(std::string filename) {
+  std::cerr << "\rLoading pretrained vectors" << std::endl;
   std::ifstream in(filename);
   std::vector<std::string> words;
   std::shared_ptr<Matrix> mat; // temp. matrix for pretrained vectors
@@ -673,34 +677,23 @@ void FastText::loadVectors(std::string filename) {
     throw std::invalid_argument(filename + " cannot be opened for loading!");
   }
   in >> n >> dim;
-  if (dim != args_->dim) {
+  if (dim != args_->dim || n != dict_->nwords()) {
     throw std::invalid_argument(
-        "Dimension of pretrained vectors (" + std::to_string(dim) +
-        ") does not match dimension (" + std::to_string(args_->dim) + ")!");
+        "Dimension of pretrained vectors (" + std::to_string(n) + "," + std::to_string(dim) +
+        ") does not match dimension (" + std::to_string(dict_->nwords()) + "," + std::to_string(args_->dim) + ")!");
   }
-  mat = std::make_shared<Matrix>(n, dim);
+  // mat = std::make_shared<Matrix>(n, dim);
+  input_ = std::make_shared<Matrix>(dict_->nwords(), args_->dim);
+  std::string word;
   for (size_t i = 0; i < n; i++) {
-    std::string word;
+    word.clear();
     in >> word;
-    words.push_back(word);
-    dict_->add(word);
     for (size_t j = 0; j < dim; j++) {
-      in >> mat->at(i, j);
+      in >> input_->at(i, j);
     }
   }
   in.close();
-
-  dict_->threshold(1, 0);
-  input_ = std::make_shared<Matrix>(dict_->nwords()+args_->bucket, args_->dim);
-  input_->uniform(1.0 / args_->dim);
-
-  for (size_t i = 0; i < n; i++) {
-    int32_t idx = dict_->getId(words[i]);
-    if (idx < 0 || idx >= dict_->nwords()) continue;
-    for (size_t j = 0; j < dim; j++) {
-      input_->at(idx, j) = mat->at(i, j);
-    }
-  }
+  std::cerr << "\rVectors loaded" << std::endl;
 }
 
 void FastText::train(const Args args) {
@@ -719,7 +712,6 @@ void FastText::train(const Args args) {
   // dict_->readFromFile(ifs);
   dict_->readFromFasta(ifs);
   ifs.close();
-  std::cerr << "\rNumber of buckets: " << dict_->nwords()+args_->bucket << std::endl;
   if (args_->pretrainedVectors.size() != 0) {
     loadVectors(args_->pretrainedVectors);
   } else {

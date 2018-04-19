@@ -303,7 +303,7 @@ bool Dictionary::readSequence(std::istream& in,
                               const int length) const {
   std::queue<int8_t> queue;
   int c;
-  int8_t val, prev_val;
+  int8_t val, val_comp, prev_val;
   int32_t index = 0, index_comp = 0;
   int32_t mult = 1;
   const int k = args_->minn;
@@ -322,24 +322,25 @@ bool Dictionary::readSequence(std::istream& in,
       ngrams_comp.push_back(index_comp);
     }
     c = sb.sbumpc();
-    if (c == '>' || c == EOF) {
+    if (c == '>' || c == EOF || c == ' ') {
       // Reached end of sequence
       return (i >= k);
     }
     c = toupper(c);
     if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
       val = base2int(c);
+      val_comp = (val + 2) % 4;
       queue.push(val);
       if (i < k) {
         index = index * 4 + val;
-        index_comp = ((val + 2) % 4) * mult + index_comp;
+        index_comp = val_comp * mult + index_comp;
         if (i < k-1) mult = mult << 2;
       }
       else {
         prev_val = queue.front();
         queue.pop();
         index = (index - prev_val * mult) * 4 + val;
-        index_comp = index_comp / 4 + ((val + 2) % 4) * mult;
+        index_comp = index_comp / 4 + val_comp * mult;
       }
       i++;
     }
@@ -601,32 +602,50 @@ int32_t Dictionary::getLine(std::istream& in,
 }
 
 int32_t Dictionary::getLine(std::istream& in,
-                            std::vector<int32_t>& words,
+                            std::vector<int32_t>& ngrams,
                             std::vector<int32_t>& labels) const {
-  std::vector<int32_t> word_hashes;
-  std::string token;
-  int32_t ntokens = 0;
+  std::string label;
+  std::vector<int32_t> ngrams_comp;
 
   reset(in);
-  words.clear();
+  ngrams.clear();
   labels.clear();
-  while (readWord(in, token)) {
-    uint32_t h = hash(token);
-    int32_t wid = getId(token, h);
-    entry_type type = wid < 0 ? getType(token) : getType(wid);
-
-    ntokens++;
-    if (type == entry_type::word) {
-      addSubwords(words, token, wid);
-      word_hashes.push_back(h);
-    } else if (type == entry_type::label && wid >= 0) {
-      labels.push_back(wid - nwords_);
-    }
-    if (token == EOS) break;
+  readSequence(in, ngrams, ngrams_comp, 300);
+  std::getline(in, label);
+  auto it = label2int_.find(label.substr(9));
+  if (it != label2int_.end()) {
+    labels.push_back(it->second);
   }
-  addWordNgrams(words, word_hashes, args_->wordNgrams);
-  return ntokens;
+  return 0;
 }
+
+// int32_t Dictionary::getLine(std::istream& in,
+//                             std::vector<int32_t>& words,
+//                             std::vector<int32_t>& labels) const {
+//   std::vector<int32_t> word_hashes;
+//   std::string token;
+//   int32_t ntokens = 0;
+
+//   reset(in);
+//   words.clear();
+//   labels.clear();
+//   while (readWord(in, token)) {
+//     uint32_t h = hash(token);
+//     int32_t wid = getId(token, h);
+//     entry_type type = wid < 0 ? getType(token) : getType(wid);
+
+//     ntokens++;
+//     if (type == entry_type::word) {
+//       addSubwords(words, token, wid);
+//       word_hashes.push_back(h);
+//     } else if (type == entry_type::label && wid >= 0) {
+//       labels.push_back(wid - nwords_);
+//     }
+//     if (token == EOS) break;
+//   }
+//   addWordNgrams(words, word_hashes, args_->wordNgrams);
+//   return ntokens;
+// }
 
 void Dictionary::pushHash(std::vector<int32_t>& hashes, int32_t id) const {
   if (pruneidx_size_ == 0 || id < 0) return;
@@ -654,59 +673,80 @@ std::string Dictionary::getLabel(int32_t lid) const {
   throw std::invalid_argument("Could not find label " + std::to_string(lid));
 }
 
+void Dictionary::saveString(std::ostream& out, const std::string& s) const {
+  out.write(s.data(), s.size() * sizeof(char));
+  out.put(0);
+}
+
+void Dictionary::loadString(std::istream& in, std::string& s) const {
+  char c;
+  s.clear();
+  while ((c = in.get()) != 0) {
+    s.push_back(c);
+  }
+}
+
 void Dictionary::save(std::ostream& out) const {
+  int32_t name2labelsize_ = name2label_.size();
   out.write((char*) &nsequences_, sizeof(int32_t));
   out.write((char*) &nlabels_, sizeof(int32_t));
+  out.write((char*) &name2labelsize_, sizeof(int32_t));
   for (int32_t i = 0; i < nsequences_; i++) {
     entry e = sequences_[i];
-    out.write(e.label.data(), e.label.size() * sizeof(char));
-    out.put(0);
-    out.write(e.name.data(), e.name.size() * sizeof(char));
-    out.put(0);
+    saveString(out, e.label);
+    saveString(out, e.name);
     out.write((char*) &(e.count), sizeof(int64_t));
     out.write((char*) &(e.seq_pos), sizeof(std::streampos));
     out.write((char*) &(e.name_pos), sizeof(std::streampos));
   }
   for (const auto pair : name2label_) {
-    out.write((char*) &(pair.first), sizeof(int32_t));
-    out.write((char*) &(pair.second), sizeof(int32_t));
+    saveString(out, pair.first);
+    saveString(out, pair.second);
   }
   for (const auto pair : label2int_) {
-    out.write((char*) &(pair.first), sizeof(int32_t));
+    saveString(out, pair.first);
     out.write((char*) &(pair.second), sizeof(int32_t));
   }
 }
 
 void Dictionary::load(std::istream& in) {
-  words_.clear();
-  in.read((char*) &size_, sizeof(int32_t));
-  in.read((char*) &nwords_, sizeof(int32_t));
+  sequences_.clear();
+  //FIXME
+  int32_t name2labelsize_;
+  in.read((char*) &nsequences_, sizeof(int32_t));
   in.read((char*) &nlabels_, sizeof(int32_t));
-  in.read((char*) &ntokens_, sizeof(int64_t));
-  in.read((char*) &pruneidx_size_, sizeof(int64_t));
-  for (int32_t i = 0; i < size_; i++) {
-    char c;
+  in.read((char*) &name2labelsize_, sizeof(int32_t));
+  for (int32_t i = 0; i < nsequences_; i++) {
     entry e;
-    while ((c = in.get()) != 0) {
-      e.word.push_back(c);
-    }
-    in.read((char*) &e.count, sizeof(int64_t));
-    in.read((char*) &e.type, sizeof(entry_type));
-    words_.push_back(e);
+    loadString(in, e.label);
+    loadString(in, e.name);
+    in.read((char*) &(e.count), sizeof(int64_t));
+    in.read((char*) &(e.seq_pos), sizeof(std::streampos));
+    in.read((char*) &(e.name_pos), sizeof(std::streampos));
+    sequences_.push_back(e);
   }
-  pruneidx_.clear();
-  for (int32_t i = 0; i < pruneidx_size_; i++) {
-    int32_t first;
-    int32_t second;
-    in.read((char*) &first, sizeof(int32_t));
-    in.read((char*) &second, sizeof(int32_t));
-    pruneidx_[first] = second;
+  // FIXME
+  name2label_.clear();
+  for (int32_t i = 0; i < name2labelsize_; i++) {
+    std::string name;
+    std::string label;
+    loadString(in, name);
+    loadString(in, label);
+    name2label_[name] = label;
   }
-  initTableDiscard();
-  initNgrams();
+  label2int_.clear();
+  for (int32_t i = 0; i < nlabels_; i++) {
+    int32_t index;
+    std::string label;
+    loadString(in, label);
+    in.read((char*) &index, sizeof(int32_t));
+    label2int_[label] = index;
+  }
+  // initTableDiscard();
+  // initNgrams();
 
-  int32_t word2intsize = std::ceil(size_ / 0.7);
-  word2int_.assign(word2intsize, -1);
+  // int32_t word2intsize = std::ceil(size_ / 0.7);
+  // word2int_.assign(word2intsize, -1);
   // for (int32_t i = 0; i < size_; i++) {
   //   word2int_[find(words_[i].word)] = i;
   // }

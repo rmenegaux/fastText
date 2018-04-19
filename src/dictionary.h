@@ -118,6 +118,8 @@ class Dictionary {
     void printDictionary() const;
     void readFromFile(std::istream&);
     std::string getLabel(int32_t) const;
+    void saveString(std::ostream& out, const std::string& s) const;
+    void loadString(std::istream& in, std::string& s) const;
     void save(std::ostream&) const;
     void load(std::istream&);
     void loadLabelMap();
