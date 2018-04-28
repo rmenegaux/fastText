@@ -32,6 +32,49 @@ Dictionary::Dictionary(std::shared_ptr<Args> args, std::istream& in) : args_(arg
   load(in);
 }
 
+const std::vector<std::vector<int> > Dictionary::hashes_
+{
+ {0, 1 , 2 , 3 , 4 , 5 , 6 , 7 , 8 , 9 },
+ {3, 14, 19, 20, 23, 27, 30, 32, 34, 36},
+ {6, 11, 15, 21, 22, 24, 25, 26, 29, 39},
+ {4, 5 , 12, 13, 17, 18, 28, 33, 35, 38},
+ {0, 1 , 2 , 7 , 8 , 9 , 10, 16, 31, 37},
+ {1, 9 , 11, 18, 19, 24, 25, 29, 35, 38},
+ {4, 8 , 10, 13, 16, 22, 26, 27, 32, 39},
+ {2, 7 , 12, 14, 15, 21, 31, 34, 36, 37},
+ {0, 3 ,  5,  6, 17, 20, 23, 28, 30, 33},
+ {2, 5 ,  6,  7,  8, 10, 12, 16, 29, 35},
+ {0, 4 , 14, 20, 21, 23, 30, 33, 36, 38},
+ {3, 11, 13, 17, 18, 24, 26, 27, 28, 39},
+ {1, 9 , 15, 19, 22, 25, 31, 32, 34, 37}
+};
+
+void Dictionary::addHashes(const std::deque<int> &values, std::vector<int32_t> &ngrams) const {
+  int32_t index = 0;
+  int32_t mult = 1;
+  int32_t size = 1 << 2*args_->minn;
+  for (int i = 0; i < hashes_.size(); ++i) {
+    for (int j = 0; j < hashes_[i].size(); ++j) {
+      index += mult * values[hashes_[i][j]];
+      mult *= 4;
+    }
+    // if (index + i * size < 0  || index + i * size > nwords()) {
+    //   std::cerr << index << std::endl;
+    //   std::cerr << i << std::endl;
+    //   std::cerr << "size "<< values.size() << std::endl;
+    //   // std::cerr << mult << std::endl;
+    //   for (int n = 0; n < values.size(); n++) {
+    //     std::cerr << n << " " << values[n] << std::endl;
+    //   }
+    // }
+    // assert(index + i * size >= 0);
+    // assert(index + i * size < nwords());
+    ngrams.push_back(index + i * size);
+    index = 0;
+    mult = 1;
+  }
+}
+
 // Add sequence to the dictionary
 void Dictionary::add(entry e) {
   nsequences_++;
@@ -85,7 +128,7 @@ void Dictionary::addLabel(const std::string& label) {
 
 int32_t Dictionary::nwords() const {
   // FIXME
-  return 1 << 2*args_->minn;
+  return (1 << 2*args_->minn) * 13;
 }
 
 int32_t Dictionary::nlabels() const {
@@ -156,9 +199,13 @@ bool Dictionary::readSequence(std::istream& in,
 
   int i = 0;
   while (length == -1 || i < length) {
-    if (i >= k) {
-      ngrams.push_back(index);
-      ngrams_comp.push_back(index_comp);
+      if (i >= k) {
+          ngrams.push_back(index);
+          ngrams_comp.push_back(index_comp);
+      }
+      if (i >= K) {
+      addHashes(queue, ngrams);
+      addHashes(rev_queue, ngrams_comp);
     }
     c = sb.sbumpc();
     if (c == BOS || c == EOF) {
@@ -202,13 +249,14 @@ bool Dictionary::readSequence(std::istream& in,
                               std::vector<int32_t>& ngrams,
                               std::vector<int32_t>& ngrams_comp,
                               const int length) const {
-  // If length is -1, read all sequence
-  std::queue<int8_t> queue;
+  std::queue<int8_t> short_queue;
+  std::deque<int8_t> queue;
+  std::deque<int8_t> rev_queue;
   int c;
   int8_t val, val_comp, prev_val;
   int32_t index = 0, index_comp = 0;
   int32_t mult = 1;
-  const int k = args_->minn;
+  const int k = 40; // args_->minn;
   ngrams.clear();
   ngrams_comp.clear();
 
@@ -232,26 +280,42 @@ bool Dictionary::readSequence(std::istream& in,
     if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
       val = base2int(c);
       val_comp = (val + 2) % 4;
-      queue.push(val);
-      if (i < k) {
-        index = index * 4 + val;
-        index_comp = val_comp * mult + index_comp;
-        if (i < k-1) mult = mult << 2;
+      // queue.push(val);
+      // if (i < k) {
+      //   index = index * 4 + val;
+      //   index_comp = val_comp * mult + index_comp;
+      //   if (i < k-1) mult = mult << 2;
+      // }
+      // else {
+      //   prev_val = queue.front();
+      //   queue.pop();
+      //   index = (index - prev_val * mult) * 4 + val;
+      //   index_comp = index_comp / 4 + val_comp * mult;
+      // }
+      if (i >= k) {
+        queue.pop_front();
+        rev_queue.pop_back();
       }
-      else {
-        prev_val = queue.front();
-        queue.pop();
-        index = (index - prev_val * mult) * 4 + val;
-        index_comp = index_comp / 4 + val_comp * mult;
-      }
+      queue.push_back(val);
+      rev_queue.push_front(val_comp);
       i++;
     }
   }
-  if (i >= k) {
-    ngrams.push_back(index);
-    ngrams_comp.push_back(index_comp);
+    if (i >= k) {
+        ngrams.push_back(index);
+        ngrams_comp.push_back(index_comp);
+        return true;
+    }
+  if (i >= K) {
+    addHashes(queue, ngrams);
+    addHashes(rev_queue, ngrams_comp);
     return true;
   }
+  // if (i >= k) {
+  //   ngrams.push_back(index);
+  //   ngrams_comp.push_back(index_comp);
+  //   return true;
+  // }
   return false;
 }
 
@@ -315,7 +379,11 @@ void Dictionary::readFromFasta(std::istream& fasta, std::istream& labels) {
   // std::vector<int32_t> ngrams, ngrams_comp;
   // in.clear();
   // in.seekg(sequences_[0].seq_pos);
-  // readSequence(in, ngrams, ngrams_comp, 20);
+  // readSequence(in, ngrams, ngrams_comp, 45);
+  // for (int i = 0; i < ngrams.size(); i++) {
+  //   std::cerr << i << " " << ngrams[i] << std::endl;
+  //   std::cerr << i << " " << ngrams_comp[i] << std::endl;
+  // }
   // in.clear();
   // in.seekg(std::streampos(0));
   // std::cerr << "\rTEST: Ground truth" << std::endl;

@@ -17,6 +17,7 @@
 #include <memory>
 #include <unordered_map>
 #include <map>
+#include <deque>
 
 #include "args.h"
 #include "real.h"
@@ -44,6 +45,9 @@ class Dictionary {
   protected:
     static const int32_t MAX_VOCAB_SIZE = 30000000;
     static const int32_t MAX_LINE_SIZE = 1024;
+    static const std::vector<std::vector<int> > hashes_;
+
+    void addHashes(const std::deque<int> &values, std::vector<int32_t> &ngrams) const;
 
     void reset(std::istream&) const;
     void pushHash(std::vector<int32_t>& hashes, int32_t id) const;
