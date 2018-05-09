@@ -35,24 +35,26 @@ Dictionary::Dictionary(std::shared_ptr<Args> args, std::istream& in) : args_(arg
 // Add sequence to the dictionary
 void Dictionary::add(entry e) {
   nsequences_++;
-  // Find label
-  e.label = findLabel(e.name);
+  // // Find label
+  // e.label = findLabel(e.name);
+  addLabel(e.label);
+  name2label_[e.name] = e.label;
   sequences_.push_back(e);
 }
 
-std::string Dictionary::findLabel(const std::string& name) {
-  std::string label;
-  auto it = name2label_.find(name);
-  if (it != name2label_.end()) {
-    addLabel(it->second);
-    return it->second;
-  }
-  // Add label to dict
-  // Maybe argument with default label?
-  name2label_[name] = name;
-  addLabel(name);
-  return name;
-}
+// std::string Dictionary::findLabel(const std::string& name) {
+//   std::string label;
+//   auto it = name2label_.find(name);
+//   if (it != name2label_.end()) {
+//     addLabel(it->second);
+//     return it->second;
+//   }
+//   // Add label to dict
+//   // Maybe argument with default label?
+//   name2label_[name] = name;
+//   addLabel(name);
+//   return name;
+// }
 
 // Returns label index of position
 int Dictionary::labelFromPos(const std::streampos& pos) {
@@ -202,12 +204,12 @@ std::string Dictionary::getSequence(int32_t index) const {
   return seq;
 }
 
-void Dictionary::readFromFasta(std::istream& in) {
+void Dictionary::readFromFasta(std::istream& fasta, std::istream& labels) {
   std::string line, name;
   entry e;
   e.count = 0;
   std::streampos prev_pos = 0;
-  while(std::getline(in, line).good()){
+  while(std::getline(fasta, line).good()){
     if(line.empty() || line[0] == BOS ){ // Identifier marker
       if( !e.name.empty() ){
         add(e);
@@ -219,13 +221,15 @@ void Dictionary::readFromFasta(std::istream& in) {
       }
       if( !line.empty() ){
         e.name = line.substr(1);
-        e.seq_pos = in.tellg();
+        // FIXME check if good
+        std::getline(labels, e.label);
+        e.seq_pos = fasta.tellg();
         e.name_pos = prev_pos;
       }
     } else {
       e.count += line.length();
     }
-    prev_pos = in.tellg();
+    prev_pos = fasta.tellg();
   }
 
   if( !e.name.empty() ){ // Add the last entry
@@ -280,9 +284,9 @@ void Dictionary::printDictionary() const {
   // for (auto it = sequences_.begin(); it != sequences_.end(); ++it) {
   //   std::cerr << it->name << " " << it->name_pos << " " << it->seq_pos << " length " << it->count << " label " << it->label << " name " << it->name << std::endl;
   // }
-  for (auto it = name2label_.begin(); it != name2label_.end(); ++it) {
-    std::cerr << it->first << " " << it->second << std::endl;
-  }
+  // for (auto it = name2label_.begin(); it != name2label_.end(); ++it) {
+  //   std::cerr << it->first << " " << it->second << std::endl;
+  // }
   for (auto it = label2int_.begin(); it != label2int_.end(); ++it) {
     std::cerr << it->first << " " << it->second << std::endl;
   }
@@ -359,6 +363,27 @@ int32_t Dictionary::getLine(std::istream& in,
   //   std::cerr << line << " label " << label << std::endl;
   // }
   auto it = label2int_.find(label.substr(9));
+  if (it != label2int_.end()) {
+    labels.push_back(it->second);
+  }
+  return 0;
+}
+
+int32_t Dictionary::getLine(std::istream& fasta,
+                            std::istream& labelfile,
+                            std::vector<int32_t>& ngrams,
+                            std::vector<int32_t>& labels) const {
+  std::string label, header;
+  std::vector<int32_t> ngrams_comp;
+
+  if (fasta.peek() == BOS) {
+    std::getline(fasta, header);
+  }
+  ngrams.clear();
+  labels.clear();
+  readSequence(fasta, ngrams, ngrams_comp, args_->length + 10);
+  std::getline(labelfile, label);
+  auto it = label2int_.find(label);
   if (it != label2int_.end()) {
     labels.push_back(it->second);
   }
@@ -470,20 +495,20 @@ void Dictionary::load(std::istream& in) {
   // }
 }
 
-void Dictionary::loadLabelMap() {
-  name2label_.clear();
-  if (args_->labels.size() != 0) {
-    std::ifstream ifs(args_->labels);
-    std::string name, label;
-    if (!ifs.is_open()) {
-      throw std::invalid_argument(args_->labels + " cannot be opened for loading!");
-    }
-    while (ifs >> name >> label) {
-      name2label_[name] = label;
-    }
-    ifs.close();
-  }
-}
+// void Dictionary::loadLabelMap() {
+//   name2label_.clear();
+//   if (args_->labels.size() != 0) {
+//     std::ifstream ifs(args_->labels);
+//     std::string name, label;
+//     if (!ifs.is_open()) {
+//       throw std::invalid_argument(args_->labels + " cannot be opened for loading!");
+//     }
+//     while (ifs >> name >> label) {
+//       name2label_[name] = label;
+//     }
+//     ifs.close();
+//   }
+// }
 
 void Dictionary::prune(std::vector<int32_t>& idx) {
   // std::vector<int32_t> words, ngrams;

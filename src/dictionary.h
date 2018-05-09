@@ -58,7 +58,7 @@ class Dictionary {
     int64_t pruneidx_size_;
     std::unordered_map<int32_t, int32_t> pruneidx_;
 
-   public:
+  public:
     static const char BOS;
 
     explicit Dictionary(std::shared_ptr<Args>);
@@ -72,7 +72,7 @@ class Dictionary {
     void add(const entry);
     std::string findLabel(const std::string&);
     int labelFromPos(const std::streampos&);
-    void readFromFasta(std::istream& in);
+    void readFromFasta(std::istream& fasta, std::istream& labels);
     void printDictionary() const;
     void readFromFile(std::istream& in);
     void initTableDiscard(); 
@@ -81,12 +81,16 @@ class Dictionary {
     void loadString(std::istream& in, std::string& s) const;
     void save(std::ostream&) const;
     void load(std::istream&);
-    void loadLabelMap();
+    // void loadLabelMap();
     std::vector<int64_t> getCounts() const;
     int32_t getLine(std::istream&, std::vector<int32_t>&, std::vector<int32_t>&)
         const;
     int32_t getLine(std::istream&, std::vector<int32_t>&,
                     std::minstd_rand&) const;
+    int32_t getLine(std::istream& fasta,
+                    std::istream& labelfile,
+                    std::vector<int32_t>& ngrams,
+                    std::vector<int32_t>& labels) const;
     void prune(std::vector<int32_t>&);
     bool isPruned() { return pruneidx_size_ >= 0; }
     void dump(std::ostream&) const;

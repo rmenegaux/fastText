@@ -92,7 +92,7 @@ class FastText {
   void skipgram(Model&, real, const std::vector<int32_t>&);
   std::vector<int32_t> selectEmbeddings(int32_t) const;
   void quantize(const Args);
-  std::tuple<int64_t, double, double> test(std::istream&, int32_t, real = 0.0);
+  std::tuple<int64_t, double, double> test(std::istream&, std::istream&, int32_t, real = 0.0);
   void predict(std::istream&, int32_t, bool, real = 0.0);
   void predict(
       std::istream&,

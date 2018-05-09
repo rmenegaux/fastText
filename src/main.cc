@@ -46,6 +46,7 @@ void printTestUsage() {
     << "usage: fasttext test <model> <test-data> [<k>] [<th>]\n\n"
     << "  <model>      model filename\n"
     << "  <test-data>  test data filename (if -, read from stdin)\n"
+    << "  <model>      test labels filename\n"
     << "  <k>          (optional; 1 by default) predict top k labels\n"
     << "  <th>         (optional; 0.0 by default) probability threshold\n"
     << std::endl;
@@ -124,16 +125,16 @@ void printDumpUsage() {
 }
 
 void test(const std::vector<std::string>& args) {
-  if (args.size() < 4 || args.size() > 6) {
+  if (args.size() < 5 || args.size() > 7) {
     printTestUsage();
     exit(EXIT_FAILURE);
   }
   int32_t k = 1;
   real threshold = 0.0;
-  if (args.size() > 4) {
-    k = std::stoi(args[4]);
-    if (args.size() == 6) {
-      threshold = std::stof(args[5]);
+  if (args.size() > 5) {
+    k = std::stoi(args[5]);
+    if (args.size() == 7) {
+      threshold = std::stof(args[6]);
     }
   }
 
@@ -144,15 +145,21 @@ void test(const std::vector<std::string>& args) {
 
   std::tuple<int64_t, double, double> result;
   std::string infile = args[3];
+  std::string labelfile = args[4];
   if (infile == "-") {
-    result = fasttext.test(std::cin, k, threshold);
+    // result = fasttext.test(std::cin, k, threshold);
   } else {
     std::ifstream ifs(infile);
     if (!ifs.is_open()) {
       std::cerr << "Test file cannot be opened!" << std::endl;
       exit(EXIT_FAILURE);
     }
-    result = fasttext.test(ifs, k, threshold);
+    std::ifstream labels(labelfile);
+    if (!ifs.is_open()) {
+      std::cerr << "Label file cannot be opened!" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    result = fasttext.test(ifs, labels, k, threshold);
     ifs.close();
   }
   std::cout << "N" << "\t" << std::get<0>(result) << std::endl;

@@ -374,6 +374,7 @@ void FastText::skipgram(Model& model, real lr,
 
 std::tuple<int64_t, double, double> FastText::test(
     std::istream& in,
+    std::istream& labelfile,
     int32_t k,
     real threshold) {
   int32_t nexamples = 0, nlabels = 0, npredictions = 0;
@@ -381,7 +382,7 @@ std::tuple<int64_t, double, double> FastText::test(
   std::vector<int32_t> line, labels;
   // dict_->printDictionary();
   while (in.peek() != EOF) {
-    dict_->getLine(in, line, labels);
+    dict_->getLine(in, labelfile, line, labels);
     if (labels.size() > 0 && line.size() > 0) {
       std::vector<std::pair<real, int32_t>> modelPredictions;
       model_->predict(line, k, threshold, modelPredictions);
@@ -395,7 +396,7 @@ std::tuple<int64_t, double, double> FastText::test(
       npredictions += modelPredictions.size();
     }
     // else {
-    //   std::cerr << "line " << line.size() << " label " << labels[0] << " pos " << in.tellg() / 215 << std::endl;
+    //   // std::cerr << "line " << line.size() << " label " << " pos " << in.tellg() / 215 << std::endl;
     // }
   }
   return std::tuple<int64_t, double, double>(
@@ -546,8 +547,8 @@ void FastText::trainThread(int32_t threadId) {
   const int64_t size_ = utils::size(ifs);
   std::streampos pos;
 
-  std::random_device rd;
-  std::mt19937 gen(rd());
+  // std::random_device rd;
+  // std::mt19937 gen(rd());
   std::uniform_int_distribution<> uniform(0, size_-1);
 
   Model model(input_, output_, args_, threadId);
@@ -561,7 +562,7 @@ void FastText::trainThread(int32_t threadId) {
     real lr = args_->lr * (1.0 - progress);
     if (args_->model == model_name::sup) {
       // Generate random position
-      pos = uniform(gen);
+      pos = uniform(model.rng);
       // Get that position's label
       label = dict_->labelFromPos(pos);
       // std::cerr << "\rLabel: " << label << std::endl;
@@ -642,9 +643,14 @@ void FastText::train(const Args args) {
       throw std::invalid_argument(
           args_->input + " cannot be opened for training!");
     }
+    std::ifstream labels(args_->labels);
+    if (!labels.is_open()) {
+      throw std::invalid_argument(
+          args_->labels + " cannot be opened for training!");
+    }
     // dict_->readFromFile(ifs);
-    dict_->loadLabelMap();
-    dict_->readFromFasta(ifs);
+    // dict_->loadLabelMap();
+    dict_->readFromFasta(ifs, labels);
     ifs.close();
     if (args_->pretrainedVectors.size() != 0) {
       loadVectors(args_->pretrainedVectors);
