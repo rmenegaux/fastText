@@ -70,13 +70,16 @@ int Dictionary::labelFromPos(const std::streampos& pos) {
   // std::cerr << "\rSeq: " << i << std::endl;
   // std::cerr << "\rLabel: " << sequences_[i].label << std::endl;
   // std::cerr << "\rIndex: " << label2int_[sequences_[i].label] << std::endl;
-  return label2int_[sequences_[i].label];
+  int32_t index = label2int_[sequences_[i].label];
+  counts_[index] += 1; 
+  return index;
 }
 
 void Dictionary::addLabel(const std::string& label) {
   auto it = label2int_.find(label);
   if (it == label2int_.end()) {
     label2int_[label] = nlabels_++;
+    counts_.push_back(0);
   }
 }
 
@@ -242,7 +245,7 @@ void Dictionary::readFromFasta(std::istream& fasta, std::istream& labels) {
     std::cerr << "\rNumber of labels: " << nlabels() << std::endl;
     std::cerr << "\rNumber of words: " << nwords() << std::endl;
     // FIXME print total length
-    // printDictionary();
+    printDictionary();
   }
   // std::vector<int32_t> ngrams, ngrams_comp;
   // in.clear();
@@ -307,11 +310,14 @@ void Dictionary::initTableDiscard() {
 }
 
 std::vector<int64_t> Dictionary::getCounts() const {
-  std::vector<int64_t> counts;
   // for (auto& w : words_) {
   //   if (w.type == type) counts.push_back(w.count);
   // }
-  return counts;
+  std::cerr << std::to_string(counts_.size()) << " labels" << std::endl;
+  for (int i = 0; i < counts_.size(); i++) {
+    std::cerr << std::to_string(i) << " " << std::to_string(counts_[i]) << std::endl;
+  }
+  return counts_;
 }
 
 void Dictionary::reset(std::istream& in) const {
@@ -366,6 +372,19 @@ int32_t Dictionary::getLine(std::istream& in,
   if (it != label2int_.end()) {
     labels.push_back(it->second);
   }
+  return 0;
+}
+
+int32_t Dictionary::getLine(std::istream& fasta,
+                            std::vector<int32_t>& ngrams) const {
+  std::string header;
+  std::vector<int32_t> ngrams_comp;
+
+  if (fasta.peek() == BOS) {
+    std::getline(fasta, header);
+  }
+  ngrams.clear();
+  readSequence(fasta, ngrams, ngrams_comp, args_->length + 10);
   return 0;
 }
 

@@ -56,6 +56,7 @@ class Dictionary {
     int32_t nlabels_;
     int32_t nsequences_;
     int64_t pruneidx_size_;
+    std::vector<int64_t> counts_;
     std::unordered_map<int32_t, int32_t> pruneidx_;
 
   public:
@@ -87,6 +88,8 @@ class Dictionary {
         const;
     int32_t getLine(std::istream&, std::vector<int32_t>&,
                     std::minstd_rand&) const;
+    int32_t getLine(std::istream& fasta,
+                            std::vector<int32_t>& ngrams) const;
     int32_t getLine(std::istream& fasta,
                     std::istream& labelfile,
                     std::vector<int32_t>& ngrams,

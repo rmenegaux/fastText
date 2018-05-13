@@ -409,11 +409,10 @@ void FastText::predict(
   std::vector<std::pair<real,std::string>>& predictions,
   real threshold
 ) const {
-  std::vector<int32_t> words, labels;
+  std::vector<int32_t> words;
   predictions.clear();
-  dict_->getLine(in, words, labels);
-  predictions.clear();
-  if (words.empty() || labels.empty()) return;
+  dict_->getLine(in, words);
+  if (words.empty()) return;
   Vector hidden(args_->dim);
   Vector output(dict_->nlabels());
   std::vector<std::pair<real,int32_t>> modelPredictions;
@@ -547,9 +546,8 @@ void FastText::trainThread(int32_t threadId) {
   const int64_t size_ = utils::size(ifs);
   std::streampos pos;
 
-  // std::random_device rd;
-  // std::mt19937 gen(rd());
-  std::uniform_int_distribution<> uniform(0, size_-1);
+  std::mt19937_64 rng(threadId);
+  std::uniform_int_distribution<int64_t> uniform(0, size_-1);
 
   Model model(input_, output_, args_, threadId);
   // FIXME
@@ -562,7 +560,7 @@ void FastText::trainThread(int32_t threadId) {
     real lr = args_->lr * (1.0 - progress);
     if (args_->model == model_name::sup) {
       // Generate random position
-      pos = uniform(model.rng);
+      pos = uniform(rng);
       // Get that position's label
       label = dict_->labelFromPos(pos);
       // std::cerr << "\rLabel: " << label << std::endl;
