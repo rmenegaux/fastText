@@ -581,7 +581,7 @@ void FastText::trainThread(int32_t threadId) {
         labels.push_back(label);
         // Go to that position
         utils::seek(ifs, pos);
-        if (dict_->readSequence(ifs, line, line_comp, args_->length, rng)) {
+        if (dict_->readSequence(ifs, line, line_comp, args_->length)) {
           localFragmentCount += 1;
           supervised(model, lr, line, labels);
           supervised(model, lr, line_comp, labels);

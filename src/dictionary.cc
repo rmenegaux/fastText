@@ -166,18 +166,20 @@ bool Dictionary::readSequence(std::istream& in,
                               std::vector<int32_t>& ngrams_comp,
                               const int length,
                               std::mt19937_64& rng) const {
-  // If length is -1, read all sequence
-  std::queue<int8_t> queue;
+  std::queue<int8_t> short_queue;
+  std::deque<int8_t> queue;
+  std::deque<int8_t> rev_queue;
   int c;
   int8_t val, val_comp, prev_val;
   int32_t index = 0, index_comp = 0;
   int32_t mult = 1;
   int32_t noise;
   const int k = args_->minn;
+  const int K = args_->maxn;
   ngrams.clear();
   ngrams_comp.clear();
 
-  std::uniform_real_distribution<> uniform(1, 100000);
+  std::uniform_int_distribution<> uniform(1, 100000);
 
   std::streambuf& sb = *in.rdbuf();
 
@@ -206,22 +208,33 @@ bool Dictionary::readSequence(std::istream& in,
       if (noise <= args_->noise) { val = noise % 4; }
       else { val = base2int(c); }
       val_comp = (val + 2) % 4;
-      queue.push(val);
+      // Contiguous k-mers
+      short_queue.push(val);
       if (i < k) {
         index = index * 4 + val;
         index_comp = val_comp * mult + index_comp;
         if (i < k-1) mult = mult << 2;
       }
       else {
-        prev_val = queue.front();
-        queue.pop();
+        prev_val = short_queue.front();
+        short_queue.pop();
         index = (index - prev_val * mult) * 4 + val;
         index_comp = index_comp / 4 + val_comp * mult;
       }
+      if (i >= K) {
+        queue.pop_front();
+        rev_queue.pop_back();
+      }
+      queue.push_back(val);
+      rev_queue.push_front(val_comp);
       i++;
     }
   }
   if (i >= k) {
+    if (i >= K) {
+      addHashes(queue, ngrams);
+      addHashes(rev_queue, ngrams_comp);
+    }
     ngrams.push_back(index);
     ngrams_comp.push_back(index_comp);
     return true;
@@ -252,6 +265,10 @@ bool Dictionary::readSequence(std::istream& in,
     if (i >= k) {
       ngrams.push_back(index);
       ngrams_comp.push_back(index_comp);
+    }
+    if (i >= K) {
+      addHashes(queue, ngrams);
+      addHashes(rev_queue, ngrams_comp);
     }
     c = sb.sbumpc();
     if (c == BOS || c == EOF) {
