@@ -64,6 +64,7 @@ class FastText {
     "getVector is being deprecated and replaced by getWordVector.")
   void getVector(Vector&, std::string&) const;
   void getWordVector(Vector&, std::string&) const;
+  void getWordVector(Vector& vec, std::istream& in) const;
   void getWordVector(Vector& vec, const int32_t i) const;
   void addInputVector(Vector&, int32_t) const;
   inline void getInputVector(Vector& vec, int32_t ind) {

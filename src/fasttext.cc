@@ -78,6 +78,18 @@ void FastText::getWordVector(Vector& vec, std::string& word) const {
   }
 }
 
+void FastText::getWordVector(Vector& vec, std::istream& in) const {
+  std::vector<int32_t> ngrams;
+  dict_->getLine(in, ngrams);
+  vec.zero();
+  for (int i = 0; i < ngrams.size(); i ++) {
+    addInputVector(vec, ngrams[i]);
+  }
+  if (ngrams.size() > 0) {
+    vec.mul(1.0 / ngrams.size());
+  }
+}
+
 void FastText::getWordVector(Vector& vec, const int32_t i) const {
   vec.zero();
   addInputVector(vec, i);

@@ -138,6 +138,7 @@ bool Dictionary::readSequence(std::istream& in,
                               std::vector<int32_t>& ngrams,
                               std::vector<int32_t>& ngrams_comp,
                               const int length) const {
+  // If length is -1, read all sequence
   std::queue<int8_t> queue;
   int c;
   int8_t val, val_comp, prev_val;
@@ -150,17 +151,17 @@ bool Dictionary::readSequence(std::istream& in,
   std::streambuf& sb = *in.rdbuf();
 
   int i = 0;
-  if (length < k) {
-    return 0;
-  }
-  while (i < length) {
+  while (length == -1 || i < length) {
     if (i >= k) {
       ngrams.push_back(index);
       ngrams_comp.push_back(index_comp);
     }
     c = sb.sbumpc();
-    if (c == '>' || c == EOF || c == ' ') {
+    if (c == BOS || c == EOF) {
       // Reached end of sequence
+      if (c == BOS) {
+        sb.sungetc();
+      }
       return (i >= k);
     }
     c = toupper(c);
@@ -245,7 +246,7 @@ void Dictionary::readFromFasta(std::istream& fasta, std::istream& labels) {
     std::cerr << "\rNumber of labels: " << nlabels() << std::endl;
     std::cerr << "\rNumber of words: " << nwords() << std::endl;
     // FIXME print total length
-    printDictionary();
+    // printDictionary();
   }
   // std::vector<int32_t> ngrams, ngrams_comp;
   // in.clear();
@@ -340,7 +341,7 @@ int32_t Dictionary::getLine(std::istream& in,
 
   reset(in);
   words.clear();
-  readSequence(in, words, ngrams_comp, args_->length + 1);
+  readSequence(in, words, ngrams_comp, -1);
 
   for(int i = 0; i < ngrams.size(); i++) {
     if (!discard(ngrams[i], uniform(rng))) {
@@ -360,7 +361,7 @@ int32_t Dictionary::getLine(std::istream& in,
   std::streampos pos = in.tellg();
   ngrams.clear();
   labels.clear();
-  readSequence(in, ngrams, ngrams_comp, args_->length + 1);
+  readSequence(in, ngrams, ngrams_comp, -1);
   std::getline(in, label);
   // if (ngrams.empty() || label.size() < 9) {
   //   in.seekg(pos);
@@ -384,7 +385,7 @@ int32_t Dictionary::getLine(std::istream& fasta,
     std::getline(fasta, header);
   }
   ngrams.clear();
-  readSequence(fasta, ngrams, ngrams_comp, args_->length + 10);
+  readSequence(fasta, ngrams, ngrams_comp, -1);
   return 0;
 }
 
@@ -400,7 +401,7 @@ int32_t Dictionary::getLine(std::istream& fasta,
   }
   ngrams.clear();
   labels.clear();
-  readSequence(fasta, ngrams, ngrams_comp, args_->length + 10);
+  readSequence(fasta, ngrams, ngrams_comp, -1);
   std::getline(labelfile, label);
   auto it = label2int_.find(label);
   if (it != label2int_.end()) {
