@@ -32,29 +32,13 @@ Dictionary::Dictionary(std::shared_ptr<Args> args, std::istream& in) : args_(arg
   load(in);
 }
 
-const std::vector<std::vector<int> > Dictionary::hashes_
-{
-  {0, 1 , 2 , 3 , 4 , 5 , 6 , 7 , 8 , 9 , 10, 11},
-  {1, 8 , 14, 15, 27, 28, 31, 41, 42, 43, 44, 46},
-  {5, 7 , 9 , 12, 18, 19, 20, 23, 30, 32, 34, 35},
-  {0, 3 , 4 , 6 , 11, 16, 22, 26, 33, 36, 37, 39},
-  {2, 10, 13, 17, 21, 24, 25, 29, 38, 40, 45, 47},
-  {0, 2 , 11, 14, 15, 21, 27, 33, 36, 40, 43, 47},
-  {7, 12, 18, 22, 23, 28, 30, 37, 39, 41, 42, 45},
-  {3,  4,  8,  9, 10, 17, 20, 24, 32, 34, 35, 38},
-  {1,  5,  6, 13, 16, 19, 25, 26, 29, 31, 44, 46},
-  {8, 10, 13, 17, 21, 27, 28, 30, 32, 39, 40, 46},
-  {6, 11, 16, 18, 19, 24, 25, 29, 33, 37, 43, 47},
-  {1,  2,  4,  5, 14, 20, 22, 23, 35, 36, 38, 41},
-  {0,  3,  7,  9, 12, 15, 26, 31, 34, 42, 44, 45},
-};
-
-void Dictionary::addHashes(const std::deque<int> &values, std::vector<int32_t> &ngrams) const {
+void Dictionary::addHashes(const std::deque<int8_t> &values,
+                           std::vector<int32_t> &ngrams) const {
   int32_t index = 0;
   int32_t mult = 1;
   int32_t size = 1 << 2*args_->minn;
-  for (int i = 0; i < hashes_.size(); ++i) {
-    for (int j = 0; j < hashes_[i].size(); ++j) {
+  for (int i = 0; i < nhashes_; ++i) {
+    for (int j = 0; j < args_->minn; ++j) {
       index += mult * values[hashes_[i][j]];
       mult *= 4;
     }
@@ -69,7 +53,7 @@ void Dictionary::addHashes(const std::deque<int> &values, std::vector<int32_t> &
     // }
     // assert(index + i * size >= 0);
     // assert(index + i * size < nwords());
-    ngrams.push_back(index + i * size);
+    ngrams.push_back(index + (i + 1) * size);
     index = 0;
     mult = 1;
   }
@@ -128,7 +112,7 @@ void Dictionary::addLabel(const std::string& label) {
 
 int32_t Dictionary::nwords() const {
   // FIXME
-  return (1 << 2*args_->minn) * 13;
+  return (1 << 2*args_->minn) * (nhashes_ + 1);
 }
 
 int32_t Dictionary::nlabels() const {
@@ -199,11 +183,11 @@ bool Dictionary::readSequence(std::istream& in,
 
   int i = 0;
   while (length == -1 || i < length) {
-      if (i >= k) {
-          ngrams.push_back(index);
-          ngrams_comp.push_back(index_comp);
-      }
-      if (i >= K) {
+    if (i >= k) {
+      ngrams.push_back(index);
+      ngrams_comp.push_back(index_comp);
+    }
+    if (i >= K) {
       addHashes(queue, ngrams);
       addHashes(rev_queue, ngrams_comp);
     }
@@ -256,7 +240,8 @@ bool Dictionary::readSequence(std::istream& in,
   int8_t val, val_comp, prev_val;
   int32_t index = 0, index_comp = 0;
   int32_t mult = 1;
-  const int k = 48; // args_->minn;
+  const int k = args_->minn;
+  const int K = args_->maxn;
   ngrams.clear();
   ngrams_comp.clear();
 
@@ -280,19 +265,20 @@ bool Dictionary::readSequence(std::istream& in,
     if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
       val = base2int(c);
       val_comp = (val + 2) % 4;
-      // queue.push(val);
-      // if (i < k) {
-      //   index = index * 4 + val;
-      //   index_comp = val_comp * mult + index_comp;
-      //   if (i < k-1) mult = mult << 2;
-      // }
-      // else {
-      //   prev_val = queue.front();
-      //   queue.pop();
-      //   index = (index - prev_val * mult) * 4 + val;
-      //   index_comp = index_comp / 4 + val_comp * mult;
-      // }
-      if (i >= k) {
+      // Contiguous k-mers
+      short_queue.push(val);
+      if (i < k) {
+        index = index * 4 + val;
+        index_comp = val_comp * mult + index_comp;
+        if (i < k-1) mult = mult << 2;
+      }
+      else {
+        prev_val = short_queue.front();
+        short_queue.pop();
+        index = (index - prev_val * mult) * 4 + val;
+        index_comp = index_comp / 4 + val_comp * mult;
+      }
+      if (i >= K) {
         queue.pop_front();
         rev_queue.pop_back();
       }
@@ -301,21 +287,15 @@ bool Dictionary::readSequence(std::istream& in,
       i++;
     }
   }
-    if (i >= k) {
-        ngrams.push_back(index);
-        ngrams_comp.push_back(index_comp);
-        return true;
+  if (i >= k) {
+    if (i >= K) {
+      addHashes(queue, ngrams);
+      addHashes(rev_queue, ngrams_comp);
     }
-  if (i >= K) {
-    addHashes(queue, ngrams);
-    addHashes(rev_queue, ngrams_comp);
+    ngrams.push_back(index);
+    ngrams_comp.push_back(index_comp);
     return true;
   }
-  // if (i >= k) {
-  //   ngrams.push_back(index);
-  //   ngrams_comp.push_back(index_comp);
-  //   return true;
-  // }
   return false;
 }
 
@@ -568,6 +548,43 @@ std::string Dictionary::getLabel(int32_t lid) const {
   throw std::invalid_argument("Could not find label " + std::to_string(lid));
 }
 
+void Dictionary::loadldpc(std::istream& in) {
+  // std::cerr << "\rLoading pretrained vectors" << std::endl;
+  int k;
+  in >> nhashes_ >> k;
+  if (k != args_->minn) {
+    throw std::invalid_argument(
+        "Dimension of ldpc hashes " + std::to_string(k) +
+        " does not match k (" + std::to_string(args_->minn) + ")!");
+  }
+  std::vector<int> vector;
+  int value;
+  for (size_t i = 0; i < nhashes_; i++) {
+    vector.clear();
+    for (size_t j = 0; j < k; j++) {
+      in >> value;
+      vector.push_back(value);
+    }
+    hashes_.push_back(vector);
+  }
+  saveldpc(std::cerr);
+}
+
+void Dictionary::saveldpc(std::ostream& out) const {
+  //FIXME check for nhashes = 0?
+  // if (args_->ldpc.size() == 0) {
+  //   return;
+  // }
+  out << nhashes_ << " " << args_->minn << std::endl;
+  for (size_t i = 0; i < nhashes_; i++) {
+    for (size_t j = 0; j < args_->minn; j++) {
+      out << hashes_[i][j];
+      if (j < args_->minn - 1) { out << " "; }
+    }
+    out << std::endl;
+  }
+}
+
 void Dictionary::saveString(std::ostream& out, const std::string& s) const {
   out.write(s.data(), s.size() * sizeof(char));
   out.put(0);
@@ -586,6 +603,7 @@ void Dictionary::save(std::ostream& out) const {
   out.write((char*) &nsequences_, sizeof(int32_t));
   out.write((char*) &nlabels_, sizeof(int32_t));
   out.write((char*) &name2labelsize_, sizeof(int32_t));
+  saveldpc(out);
   for (int32_t i = 0; i < nsequences_; i++) {
     entry e = sequences_[i];
     saveString(out, e.label);
@@ -611,6 +629,7 @@ void Dictionary::load(std::istream& in) {
   in.read((char*) &nsequences_, sizeof(int32_t));
   in.read((char*) &nlabels_, sizeof(int32_t));
   in.read((char*) &name2labelsize_, sizeof(int32_t));
+  loadldpc(in);
   for (int32_t i = 0; i < nsequences_; i++) {
     entry e;
     loadString(in, e.label);

@@ -26,13 +26,6 @@ namespace fasttext {
 
 typedef int32_t id_type;
 
-// struct entry {
-//   std::string word;
-//   int64_t count;
-//   entry_type type;
-//   std::vector<int32_t> subwords;
-// };
-
 struct entry {
   std::string name;
   std::string label;
@@ -45,9 +38,10 @@ class Dictionary {
   protected:
     static const int32_t MAX_VOCAB_SIZE = 30000000;
     static const int32_t MAX_LINE_SIZE = 1024;
-    static const std::vector<std::vector<int> > hashes_;
+    std::vector<std::vector<int> > hashes_;
 
-    void addHashes(const std::deque<int> &values, std::vector<int32_t> &ngrams) const;
+    void addHashes(const std::deque<int8_t> &values,
+                   std::vector<int32_t> &ngrams) const;
 
     void reset(std::istream&) const;
     void pushHash(std::vector<int32_t>& hashes, int32_t id) const;
@@ -57,6 +51,7 @@ class Dictionary {
     std::map<std::string, int> label2int_;
 
     std::vector<real> pdiscard_;
+    int nhashes_;
     int32_t nlabels_;
     int32_t nsequences_;
     int64_t pruneidx_size_;
@@ -82,6 +77,8 @@ class Dictionary {
     void readFromFile(std::istream& in);
     void initTableDiscard(); 
     std::string getLabel(int32_t) const;
+    void loadldpc(std::istream&);
+    void saveldpc(std::ostream&) const;
     void saveString(std::ostream& out, const std::string& s) const;
     void loadString(std::istream& in, std::string& s) const;
     void save(std::ostream&) const;

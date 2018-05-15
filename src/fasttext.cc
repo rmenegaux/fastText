@@ -644,6 +644,16 @@ void FastText::train(const Args args) {
     args_ = std::make_shared<Args>(args);
   } else {
     dict_ = std::make_shared<Dictionary>(args_);
+
+    if (args_->ldpc.size() != 0) {
+      std::ifstream ldpc(args_->ldpc);
+      if (!ldpc.is_open()) {
+        throw std::invalid_argument(
+            args_->ldpc + " cannot be opened for training!");
+      }
+      dict_->loadldpc(ldpc);
+      ldpc.close();
+    }
     if (args_->input == "-") {
       // manage expectations
       throw std::invalid_argument("Cannot use stdin for training!");
@@ -662,6 +672,8 @@ void FastText::train(const Args args) {
     // dict_->loadLabelMap();
     dict_->readFromFasta(ifs, labels);
     ifs.close();
+    labels.close();
+
     if (args_->pretrainedVectors.size() != 0) {
       loadVectors(args_->pretrainedVectors);
     } else {
