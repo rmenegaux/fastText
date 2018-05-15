@@ -45,6 +45,7 @@ class Args {
     int minn;
     int maxn;
     int length;
+    int noise;
     int thread;
     double t;
     std::string label;

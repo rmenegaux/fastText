@@ -29,6 +29,7 @@ Args::Args() {
   model = model_name::sg;
   bucket = 2000000;
   length = 200;
+  noise = 0;
   minn = 3;
   maxn = 6;
   thread = 12;
@@ -141,6 +142,8 @@ void Args::parseArgs(const std::vector<std::string>& args) {
         }
       } else if (args[ai] == "-bucket") {
         bucket = std::stoi(args.at(ai + 1));
+      } else if (args[ai] == "-noise") {
+        noise = std::stoi(args.at(ai + 1));
       } else if (args[ai] == "-length") {
         length = std::stoi(args.at(ai + 1));
       } else if (args[ai] == "-minn") {
@@ -235,7 +238,8 @@ void Args::printTrainingHelp() {
     << "  -lr                 learning rate [" << lr << "]\n"
     << "  -lrUpdateRate       change the rate of updates for the learning rate [" << lrUpdateRate << "]\n"
     << "  -dim                size of word vectors [" << dim << "]\n"
-    << "  -length             length of fragments for training [" << minn << "]\n"
+    << "  -noise              mutation rate (/100,000)[" << noise << "]\n"
+    << "  -length             length of fragments for training [" << length << "]\n"
     << "  -ws                 size of the context window [" << ws << "]\n"
     << "  -epoch              number of epochs [" << epoch << "]\n"
     << "  -neg                number of negatives sampled [" << neg << "]\n"
