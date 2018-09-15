@@ -57,7 +57,7 @@ class Model {
     static bool comparePairs(const std::pair<real, int32_t>&,
                              const std::pair<real, int32_t>&);
 
-    int32_t getNegative(int32_t target);
+    index getNegative(index target);
     void initSigmoid();
     void initLog();
 
@@ -72,18 +72,18 @@ class Model {
     real hierarchicalSoftmax(int32_t, real);
     real softmax(int32_t, real);
 
-    void predict(const std::vector<int32_t>&, int32_t, real,
+    void predict(const std::vector<index>&, int32_t, real,
                  std::vector<std::pair<real, int32_t>>&,
                  Vector&, Vector&) const;
-    void predict(const std::vector<int32_t>&, int32_t, real,
+    void predict(const std::vector<index>&, int32_t, real,
                  std::vector<std::pair<real, int32_t>>&);
     void dfs(int32_t, real, int32_t, real,
              std::vector<std::pair<real, int32_t>>&,
              Vector&) const;
     void findKBest(int32_t, real, std::vector<std::pair<real, int32_t>>&,
                    Vector&, Vector&) const;
-    void update(const std::vector<int32_t>&, int32_t, real);
-    void computeHidden(const std::vector<int32_t>&, Vector&) const;
+    void update(const std::vector<index>&, int32_t, real);
+    void computeHidden(const std::vector<index>&, Vector&) const;
     void computeOutputSoftmax(Vector&, Vector&) const;
     void computeOutputSoftmax();
 

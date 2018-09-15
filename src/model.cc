@@ -124,7 +124,7 @@ real Model::softmax(int32_t target, real lr) {
   return -log(output_[target]);
 }
 
-void Model::computeHidden(const std::vector<int32_t>& input, Vector& hidden) const {
+void Model::computeHidden(const std::vector<index>& input, Vector& hidden) const {
   assert(hidden.size() == hsz_);
   hidden.zero();
   for (auto it = input.cbegin(); it != input.cend(); ++it) {
@@ -142,7 +142,7 @@ bool Model::comparePairs(const std::pair<real, int32_t> &l,
   return l.first > r.first;
 }
 
-void Model::predict(const std::vector<int32_t>& input, int32_t k, real threshold,
+void Model::predict(const std::vector<index>& input, int32_t k, real threshold,
                     std::vector<std::pair<real, int32_t>>& heap,
                     Vector& hidden, Vector& output) const {
   if (k <= 0) {
@@ -162,7 +162,7 @@ void Model::predict(const std::vector<int32_t>& input, int32_t k, real threshold
 }
 
 void Model::predict(
-  const std::vector<int32_t>& input,
+  const std::vector<index>& input,
   int32_t k,
   real threshold,
   std::vector<std::pair<real, int32_t>>& heap
@@ -221,7 +221,7 @@ void Model::dfs(int32_t k, real threshold, int32_t node, real score,
   dfs(k, threshold, tree[node].right, score + std_log(f), heap, hidden);
 }
 
-void Model::update(const std::vector<int32_t>& input, int32_t target, real lr) {
+void Model::update(const std::vector<index>& input, int32_t target, real lr) {
   assert(target >= 0);
   assert(target < osz_);
   if (input.size() == 0) return;
@@ -269,8 +269,8 @@ void Model::initTableNegatives(const std::vector<int64_t>& counts) {
   std::shuffle(negatives_.begin(), negatives_.end(), rng);
 }
 
-int32_t Model::getNegative(int32_t target) {
-  int32_t negative;
+index Model::getNegative(index target) {
+  index negative;
   do {
     negative = negatives_[negpos];
     negpos = (negpos + 1) % negatives_.size();

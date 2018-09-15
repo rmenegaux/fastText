@@ -19,6 +19,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <queue>
+#include <algorithm>
 
 namespace fasttext {
 
@@ -83,7 +84,7 @@ void Dictionary::addLabel(const std::string& label) {
   }
 }
 
-int32_t Dictionary::nwords() const {
+index Dictionary::nwords() const {
   // FIXME
   return 1 << 2*args_->minn;
 }
@@ -116,7 +117,8 @@ int8_t Dictionary::base2int(const char c) const {
   // With this convention, the complementary basepair is
   // (base + 2) % 4
   switch(c) {
-    case 'A' : return 0;
+    case 'A' :
+    case 'a' : return 0;
     case 'C' : return 1;
     case 'T' : return 2;
     case 'G' : return 3;
@@ -134,25 +136,28 @@ char Dictionary::int2base(const int c) const {
   throw std::invalid_argument("Number greater than 3 in int2base");
 }
 
+
 bool Dictionary::readSequence(std::istream& in,
-                              std::vector<int32_t>& ngrams,
-                              std::vector<int32_t>& ngrams_comp,
+                              std::vector<index>& ngrams,
+                              std::vector<index>& ngrams_comp,
                               const int length,
                               std::mt19937_64& rng) const {
   // If length is -1, read all sequence
-  std::queue<int8_t> queue;
+
+  // mask to keep the index values between 0 and 4**k-1
+  index mask = nwords() - 1;
+  index index = 0, index_comp = 0;
   int c;
-  int8_t val, val_comp, prev_val;
-  int32_t index = 0, index_comp = 0;
-  int32_t mult = 1;
-  int32_t noise;
+  int8_t val, val_comp;  
+
   const int k = args_->minn;
   ngrams.clear();
   ngrams_comp.clear();
 
-  std::uniform_real_distribution<> uniform(1, 100000);
-
   std::streambuf& sb = *in.rdbuf();
+
+  int32_t noise;
+  std::uniform_real_distribution<> uniform(1, 100000);
 
   int i = 0;
   while (length == -1 || i < length) {
@@ -174,18 +179,19 @@ bool Dictionary::readSequence(std::istream& in,
       // random mutation
       if (noise <= args_->noise) { val = noise % 4; }
       else { val = base2int(c); }
+      // consider bit flip here
       val_comp = (val + 2) % 4;
-      queue.push(val);
+
+      index *=  4;
+      index += val;
       if (i < k) {
-        index = index * 4 + val;
-        index_comp = val_comp * mult + index_comp;
-        if (i < k-1) mult = mult << 2;
+        index_comp += val_comp << 2*i;
       }
       else {
-        prev_val = queue.front();
-        queue.pop();
-        index = (index - prev_val * mult) * 4 + val;
-        index_comp = index_comp / 4 + val_comp * mult;
+        index_comp /= 4;
+        index_comp += val_comp << 2*k;
+        index &= mask;
+        index_comp &= mask;
       }
       i++;
     }
@@ -199,15 +205,17 @@ bool Dictionary::readSequence(std::istream& in,
 }
 
 bool Dictionary::readSequence(std::istream& in,
-                              std::vector<int32_t>& ngrams,
-                              std::vector<int32_t>& ngrams_comp,
+                              std::vector<index>& ngrams,
+                              std::vector<index>& ngrams_comp,
                               const int length) const {
   // If length is -1, read all sequence
-  std::queue<int8_t> queue;
+
+  // mask to keep the index values between 0 and 4**k-1
+  index mask = nwords() - 1;
+  index index = 0, index_comp = 0;
   int c;
-  int8_t val, val_comp, prev_val;
-  int32_t index = 0, index_comp = 0;
-  int32_t mult = 1;
+  int8_t val, val_comp;  
+
   const int k = args_->minn;
   ngrams.clear();
   ngrams_comp.clear();
@@ -228,21 +236,33 @@ bool Dictionary::readSequence(std::istream& in,
       }
       return (i >= k);
     }
-    c = toupper(c);
-    if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
-      val = base2int(c);
-      val_comp = (val + 2) % 4;
-      queue.push(val);
+    // c = toupper(c);
+    switch(c) {
+      case 'A' :
+      case 'a' : { val = 0; val_comp = 2; break;}
+      case 'C' :
+      case 'c' : { val = 1; val_comp = 3; break;}
+      case 't' :
+      case 'T' : { val = 2; val_comp = 0; break;}
+      case 'g' :
+      case 'G' : { val = 3; val_comp = 1; break;}
+      default : val = -1;
+    }
+    // if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
+    //   val = base2int(c);
+    //   // consider bit flip here
+    //   val_comp = (val + 2) % 4;
+    if (val >= 0) {
+      index *=  4;
+      index += val;
       if (i < k) {
-        index = index * 4 + val;
-        index_comp = val_comp * mult + index_comp;
-        if (i < k-1) mult = mult << 2;
+        index_comp += val_comp << 2*i;
       }
       else {
-        prev_val = queue.front();
-        queue.pop();
-        index = (index - prev_val * mult) * 4 + val;
-        index_comp = index_comp / 4 + val_comp * mult;
+        index_comp /= 4;
+        index_comp += val_comp << 2*k;
+        index &= mask;
+        index_comp &= mask;
       }
       i++;
     }
@@ -255,14 +275,132 @@ bool Dictionary::readSequence(std::istream& in,
   return false;
 }
 
+bool Dictionary::readSequence(std::istream& in,
+                              std::vector<index>& ngrams,
+                              const int length) const {
+  // If length is -1, read all sequence
+
+  // mask to keep the index values between 0 and 4**k-1
+  index mask = nwords() - 1;
+  index index = 0;
+  int c;
+  int8_t val;  
+
+  const int k = args_->minn;
+  ngrams.clear();
+
+  std::streambuf& sb = *in.rdbuf();
+
+  int i = 0;
+  while (length == -1 || i < length) {
+    if (i >= k) {
+      ngrams.push_back(index);
+    }
+    c = sb.sbumpc();
+    if (c == BOS || c == EOF) {
+      // Reached end of sequence
+      if (c == BOS) {
+        sb.sungetc();
+      }
+      return (i >= k);
+    }
+    // c = toupper(c);
+    switch(c) {
+      case 'A' :
+      case 'a' : { val = 0; break;}
+      case 'C' :
+      case 'c' : { val = 1; break;}
+      case 't' :
+      case 'T' : { val = 2; break;}
+      case 'g' :
+      case 'G' : { val = 3; break;}
+      default : val = -1;
+    }
+    // if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
+    //   val = base2int(c);
+    //   // consider bit flip here
+    //   val_comp = (val + 2) % 4;
+    if (val >= 0) {
+      index *=  4;
+      index += val;
+      if (i >= k) {
+        index &= mask;
+      }
+      i++;
+    }
+  }
+  if (i >= k) {
+    ngrams.push_back(index);
+    return true;
+  }
+  return false;
+}
+
+// bool Dictionary::readSequence(std::istream& in,
+//                               std::vector<index>& ngrams,
+//                               std::vector<index>& ngrams_comp,
+//                               const int length) const {
+//   // If length is -1, read all sequence
+//   std::queue<int8_t> queue;
+//   int c;
+//   int8_t val, val_comp, prev_val;
+//   index index = 0, index_comp = 0;
+//   int32_t mult = 1;
+//   const int k = args_->minn;
+//   ngrams.clear();
+//   ngrams_comp.clear();
+
+//   std::streambuf& sb = *in.rdbuf();
+
+//   int i = 0;
+//   while (length == -1 || i < length) {
+//     if (i >= k) {
+//       ngrams.push_back(index);
+//       ngrams_comp.push_back(index_comp);
+//     }
+//     c = sb.sbumpc();
+//     if (c == BOS || c == EOF) {
+//       // Reached end of sequence
+//       if (c == BOS) {
+//         sb.sungetc();
+//       }
+//       return (i >= k);
+//     }
+//     c = toupper(c);
+//     if (c == 'A' || c == 'C' || c == 'G' || c == 'T') {
+//       val = base2int(c);
+//       val_comp = (val + 2) % 4;
+//       queue.push(val);
+//       if (i < k) {
+//         index = index * 4 + val;
+//         index_comp = val_comp * mult + index_comp;
+//         if (i < k-1) mult = mult << 2;
+//       }
+//       else {
+//         prev_val = queue.front();
+//         queue.pop();
+//         index = (index - prev_val * mult) * 4 + val;
+//         index_comp = index_comp / 4 + val_comp * mult;
+//       }
+//       i++;
+//     }
+//   }
+//   if (i >= k) {
+//     ngrams.push_back(index);
+//     ngrams_comp.push_back(index_comp);
+//     return true;
+//   }
+//   return false;
+// }
+
 bool Dictionary::readSequence(std::string& word,
-                            std::vector<int32_t>& ngrams,
-                            std::vector<int32_t>& ngrams_comp) const {
+                            std::vector<index>& ngrams,
+                            std::vector<index>& ngrams_comp) const {
   std::istringstream in(word);
   return readSequence(in, ngrams, ngrams_comp, word.size());
 }
 
-std::string Dictionary::getSequence(int32_t index) const {
+std::string Dictionary::getSequence(index index) const {
   std::string seq;
   for(int i = 0; i < args_->minn; i++) {
     // FIXME use push_back with other arithmetic?
@@ -394,14 +532,13 @@ void Dictionary::reset(std::istream& in) const {
 }
 
 int32_t Dictionary::getLine(std::istream& in,
-                            std::vector<int32_t>& words,
+                            std::vector<index>& words,
                             std::minstd_rand& rng) const {
   // FIXME
   std::uniform_real_distribution<> uniform(0, 1);
   std::string token;
-  std::vector<int32_t> ngrams;
-  std::vector<int32_t> ngrams_comp;
-  int32_t ntokens = 0;
+  std::vector<index> ngrams;
+  std::vector<index> ngrams_comp;
 
   reset(in);
   words.clear();
@@ -416,10 +553,10 @@ int32_t Dictionary::getLine(std::istream& in,
 }
 
 int32_t Dictionary::getLine(std::istream& in,
-                            std::vector<int32_t>& ngrams,
+                            std::vector<index>& ngrams,
                             std::vector<int32_t>& labels) const {
   std::string label;
-  std::vector<int32_t> ngrams_comp;
+  std::vector<index> ngrams_comp;
 
   reset(in);
   std::streampos pos = in.tellg();
@@ -441,24 +578,26 @@ int32_t Dictionary::getLine(std::istream& in,
 }
 
 int32_t Dictionary::getLine(std::istream& fasta,
-                            std::vector<int32_t>& ngrams) const {
+                            std::vector<index>& ngrams) const {
   std::string header;
-  std::vector<int32_t> ngrams_comp;
+  // std::vector<index> ngrams_comp;
+
+  // std::streampos begin = fasta.tellg();
 
   if (fasta.peek() == BOS) {
     std::getline(fasta, header);
   }
   ngrams.clear();
-  readSequence(fasta, ngrams, ngrams_comp, -1);
+  readSequence(fasta, ngrams, -1);
   return 0;
 }
 
 int32_t Dictionary::getLine(std::istream& fasta,
                             std::istream& labelfile,
-                            std::vector<int32_t>& ngrams,
+                            std::vector<index>& ngrams,
                             std::vector<int32_t>& labels) const {
   std::string label, header;
-  std::vector<int32_t> ngrams_comp;
+  std::vector<index> ngrams_comp;
 
   if (fasta.peek() == BOS) {
     std::getline(fasta, header);

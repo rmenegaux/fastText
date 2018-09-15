@@ -27,7 +27,7 @@ constexpr int32_t FASTTEXT_FILEFORMAT_MAGIC_INT32 = 793712314;
 
 FastText::FastText() : quant_(false) {}
 
-void FastText::addInputVector(Vector& vec, int32_t ind) const {
+void FastText::addInputVector(Vector& vec, index ind) const {
   if (quant_) {
     vec.addRow(*qinput_, ind);
   } else {
@@ -51,12 +51,12 @@ std::shared_ptr<const Matrix> FastText::getOutputMatrix() const {
   return output_;
 }
 
-int32_t FastText::getWordId(std::string& word) const {
-  // FIXME
+index FastText::getWordId(std::string& word) const {
+  // FIXME returns -1 but is not allowed to
   if (word.size() != args_->minn) {
     return -1;
   }
-  std::vector<int32_t> ngrams, ngrams_comp;
+  std::vector<index> ngrams, ngrams_comp;
   dict_->readSequence(word, ngrams, ngrams_comp);
   return ngrams.empty() ? -1 : ngrams[0];
 }
@@ -67,7 +67,7 @@ int32_t FastText::getSubwordId(const std::string& word) const {
 }
 
 void FastText::getWordVector(Vector& vec, std::string& word) const {
-  std::vector<int32_t> ngrams, ngrams_comp;
+  std::vector<index> ngrams, ngrams_comp;
   dict_->readSequence(word, ngrams, ngrams_comp);
   vec.zero();
   for (int i = 0; i < ngrams.size(); i ++) {
@@ -79,7 +79,7 @@ void FastText::getWordVector(Vector& vec, std::string& word) const {
 }
 
 void FastText::getWordVector(Vector& vec, std::istream& in) const {
-  std::vector<int32_t> ngrams;
+  std::vector<index> ngrams;
   dict_->getLine(in, ngrams);
   vec.zero();
   for (int i = 0; i < ngrams.size(); i ++) {
@@ -90,7 +90,7 @@ void FastText::getWordVector(Vector& vec, std::istream& in) const {
   }
 }
 
-void FastText::getWordVector(Vector& vec, const int32_t i) const {
+void FastText::getWordVector(Vector& vec, const index i) const {
   vec.zero();
   addInputVector(vec, i);
 }
@@ -107,7 +107,7 @@ void FastText::saveVectors() {
   }
   ofs << dict_->nwords() << " " << args_->dim << std::endl;
   Vector vec(args_->dim);
-  for (int32_t i = 0; i < dict_->nwords(); i++) {
+  for (index i = 0; i < dict_->nwords(); i++) {
     std::string word = dict_->getSequence(i);
     getWordVector(vec, i);
     ofs << word << " " << vec << std::endl;
@@ -345,7 +345,7 @@ void FastText::quantize(const Args qargs) {
 void FastText::supervised(
     Model& model,
     real lr,
-    const std::vector<int32_t>& line,
+    const std::vector<index>& line,
     const std::vector<int32_t>& labels) {
   if (labels.size() == 0 || line.size() == 0) return;
   std::uniform_int_distribution<> uniform(0, labels.size() - 1);
@@ -354,7 +354,7 @@ void FastText::supervised(
 }
 
 void FastText::cbow(Model& model, real lr,
-                    const std::vector<int32_t>& line) {
+                    const std::vector<index>& line) {
   // std::vector<int32_t> bow;
   // std::uniform_int_distribution<> uniform(1, args_->ws);
   // for (int32_t w = 0; w < line.size(); w++) {
@@ -371,7 +371,7 @@ void FastText::cbow(Model& model, real lr,
 }
 
 void FastText::skipgram(Model& model, real lr,
-                        const std::vector<int32_t>& line) {
+                        const std::vector<index>& line) {
   // std::uniform_int_distribution<> uniform(1, args_->ws);
   // for (int32_t w = 0; w < line.size(); w++) {
   //   int32_t boundary = uniform(model.rng);
@@ -391,7 +391,8 @@ std::tuple<int64_t, double, double> FastText::test(
     real threshold) {
   int32_t nexamples = 0, nlabels = 0, npredictions = 0;
   double precision = 0.0;
-  std::vector<int32_t> line, labels;
+  std::vector<index> line;
+  std::vector<int32_t> labels;
   // dict_->printDictionary();
   while (in.peek() != EOF) {
     dict_->getLine(in, labelfile, line, labels);
@@ -421,7 +422,8 @@ void FastText::predict(
   std::vector<std::pair<real,std::string>>& predictions,
   real threshold
 ) const {
-  std::vector<int32_t> words;
+  std::vector<index> words;
+  words.reserve(200);
   predictions.clear();
   dict_->getLine(in, words);
   if (words.empty()) return;
@@ -565,7 +567,8 @@ void FastText::trainThread(int32_t threadId) {
   // FIXME
   const int64_t ntokens = size_ / args_->length; // dict_->ntokens();
   int64_t localFragmentCount = 0;
-  std::vector<int32_t> line, line_comp, labels;
+  std::vector<index> line, line_comp;
+  std::vector<int32_t> labels;
   int label;
   while (tokenCount_ < args_->epoch * ntokens) {
     real progress = real(tokenCount_) / (args_->epoch * ntokens);

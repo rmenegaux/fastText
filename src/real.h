@@ -12,5 +12,5 @@
 namespace fasttext {
 
 typedef float real;
-
+typedef uint32_t index;
 }

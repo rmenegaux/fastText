@@ -65,7 +65,7 @@ class Dictionary {
     explicit Dictionary(std::shared_ptr<Args>);
     explicit Dictionary(std::shared_ptr<Args>, std::istream&);
     void addLabel(const std::string&);
-    int32_t nwords() const;
+    index nwords() const;
     int32_t nlabels() const;
     int64_t ntokens() const;
     bool discard(int32_t, real) const;
@@ -84,33 +84,36 @@ class Dictionary {
     void load(std::istream&);
     // void loadLabelMap();
     std::vector<int64_t> getCounts() const;
-    int32_t getLine(std::istream&, std::vector<int32_t>&, std::vector<int32_t>&)
+    int32_t getLine(std::istream&, std::vector<index>&, std::vector<int32_t>&)
         const;
-    int32_t getLine(std::istream&, std::vector<int32_t>&,
+    int32_t getLine(std::istream&, std::vector<index>&,
                     std::minstd_rand&) const;
     int32_t getLine(std::istream& fasta,
-                            std::vector<int32_t>& ngrams) const;
+                            std::vector<index>& ngrams) const;
     int32_t getLine(std::istream& fasta,
                     std::istream& labelfile,
-                    std::vector<int32_t>& ngrams,
+                    std::vector<index>& ngrams,
                     std::vector<int32_t>& labels) const;
     void prune(std::vector<int32_t>&);
     bool isPruned() { return pruneidx_size_ >= 0; }
     void dump(std::ostream&) const;
     int8_t base2int(const char c) const;
     char int2base(const int c) const;
-    std::string getSequence(int32_t i) const;
+    std::string getSequence(index i) const;
     bool readSequence(
-        std::istream& in, std::vector<int32_t>& ngrams,
-        std::vector<int32_t>& ngrams_comp,
+        std::istream& in, std::vector<index>& ngrams,
+        std::vector<index>& ngrams_comp,
         const int length) const;
     bool readSequence(
-        std::istream& in, std::vector<int32_t>& ngrams,
-        std::vector<int32_t>& ngrams_comp,
+        std::istream& in, std::vector<index>& ngrams,
+        const int length) const;
+    bool readSequence(
+        std::istream& in, std::vector<index>& ngrams,
+        std::vector<index>& ngrams_comp,
         const int length,
         std::mt19937_64&) const;
     bool readSequence(std::string& word,
-                      std::vector<int32_t>& ngrams,
-                      std::vector<int32_t>& ngrams_comp) const;
+                      std::vector<index>& ngrams,
+                      std::vector<index>& ngrams_comp) const;
 };
 }

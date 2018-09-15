@@ -58,16 +58,16 @@ class FastText {
  public:
   FastText();
 
-  int32_t getWordId(std::string&) const;
+  index getWordId(std::string&) const;
   int32_t getSubwordId(const std::string&) const;
   FASTTEXT_DEPRECATED(
     "getVector is being deprecated and replaced by getWordVector.")
   void getVector(Vector&, std::string&) const;
   void getWordVector(Vector&, std::string&) const;
   void getWordVector(Vector& vec, std::istream& in) const;
-  void getWordVector(Vector& vec, const int32_t i) const;
-  void addInputVector(Vector&, int32_t) const;
-  inline void getInputVector(Vector& vec, int32_t ind) {
+  void getWordVector(Vector& vec, const index i) const;
+  void addInputVector(Vector&, index) const;
+  inline void getInputVector(Vector& vec, index ind) {
     vec.zero();
     addInputVector(vec, ind);
   }
@@ -87,10 +87,10 @@ class FastText {
   void supervised(
       Model&,
       real,
-      const std::vector<int32_t>&,
+      const std::vector<index>&,
       const std::vector<int32_t>&);
-  void cbow(Model&, real, const std::vector<int32_t>&);
-  void skipgram(Model&, real, const std::vector<int32_t>&);
+  void cbow(Model&, real, const std::vector<index>&);
+  void skipgram(Model&, real, const std::vector<index>&);
   std::vector<int32_t> selectEmbeddings(int32_t) const;
   void quantize(const Args);
   std::tuple<int64_t, double, double> test(std::istream&, std::istream&, int32_t, real = 0.0);
