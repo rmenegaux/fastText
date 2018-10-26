@@ -189,7 +189,7 @@ bool Dictionary::readSequence(std::istream& in,
       }
       else {
         index_comp /= 4;
-        index_comp += val_comp << 2*k;
+        index_comp += val_comp << 2*(k-1);
         index &= mask;
         index_comp &= mask;
       }
@@ -260,7 +260,7 @@ bool Dictionary::readSequence(std::istream& in,
       }
       else {
         index_comp /= 4;
-        index_comp += val_comp << 2*k;
+        index_comp += val_comp << 2*(k-1);
         index &= mask;
         index_comp &= mask;
       }
